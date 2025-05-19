@@ -161,9 +161,9 @@
         
         /* .invoice-number-prefix { ... } // Removed this entire block */
         
-        /* #invoiceSequence.with-prefix { ... } // Removed this entire block */
+        /* #invoiceNumber.with-prefix { ... } // Removed this entire block */
 
-         #invoiceSequence { /* Base styles for the input, if not already covered globally */
+         #invoiceNumber { /* Base styles for the input, if not already covered globally */
             font-size: 0.875rem; /* Match prefix font size */
         }
         
@@ -197,13 +197,13 @@
             .line-item .grid { gap: 0.5rem; }
             .invoice-number-container { margin-bottom: 0.75rem; }
             /* .invoice-number-prefix { left: 10px; font-size: 0.95rem; } // Removed */
-            /* #invoiceSequence.with-prefix { padding-left: 40px !important; } // Removed */
+            /* #invoiceNumber.with-prefix { padding-left: 40px !important; } // Removed */
         }
         
         @media (max-width: 480px) {
             .invoice-number-container { margin-bottom: 0.5rem; }
             /* .invoice-number-prefix { left: 8px; font-size: 0.9rem; } // Removed */
-            /* #invoiceSequence.with-prefix { padding-left: 35px !important; } // Removed */
+            /* #invoiceNumber.with-prefix { padding-left: 35px !important; } // Removed */
             .card, .section { padding: 1rem; }
             .line-item { padding: 0.75rem; }
         }
@@ -258,18 +258,17 @@
                     <div class="recipient-fixed">Frontwind LLC<br>8 THE GREEN A, DOVER, 19901 Delaware, United States</div>
                 </div>
                 <div class="form-group">
-                    <label for="frontwindTin">Frontwind TIN (optional)</label>
-                    <input type="text" id="frontwindTin" name="frontwindTin">
+
                     <div class="text-xs text-gray-400 mt-1">Optional. Only required for Italy, Spain, Brazil, Argentina, and Mexico.</div>
                 </div>
                 
                 <div class="grid">
                     <div class="form-group">
-                        <label for="invoiceSequence">Invoice Number *</label>
+                        <label for="invoiceNumber">Invoice Number *</label>
                         <div class="invoice-number-container">
-                            <input type="text" id="invoiceSequence" name="invoiceSequence" placeholder="e.g., SH-01" required>
+
                         </div>
-                        <div class="text-xs text-gray-400 mt-1">Enter the full invoice number (e.g., SH-01, AB-123). Ensure it includes your initials and a sequence number.</div>
+                        <div class="text-xs text-gray-400 mt-1">Enter the full invoice number, including your initials and a sequence (e.g., SH-01, AB-123).</div>
                     </div>
                     <div class="form-group">
                         <label for="invoiceDate">Invoice Date *</label>
@@ -463,16 +462,16 @@
         document.getElementById('fullName').addEventListener('input', function() {
             const initials = getInitials(this.value);
             const initialsPrefix = document.getElementById('initialsPrefix');
-            const invoiceSeqInput = document.getElementById('invoiceSequence');
+            const invoiceNumberInput = document.getElementById('invoiceNumber');
             
             if (initials) {
                 // initialsPrefix.textContent = `${initials}-`; // Removed
                 // initialsPrefix.style.display = 'flex'; // Removed
-                // invoiceSeqInput.classList.add('with-prefix'); // Removed
+                // invoiceNumberInput.classList.add('with-prefix'); // Removed
             } else {
                 // initialsPrefix.textContent = ''; // Removed
                 // initialsPrefix.style.display = 'none'; // Removed
-                // invoiceSeqInput.classList.remove('with-prefix'); // Removed
+                // invoiceNumberInput.classList.remove('with-prefix'); // Removed
             }
         });
         
@@ -566,8 +565,7 @@
         function escapePdfText(text) {
             if (text === null || typeof text === 'undefined') return '';
             return String(text)
-                .replace(/[\u0000-\u0009\u000B\u000C\u000E-\u001F]/g, '') // remove control chars except newline
-                .replace(/[\u007F-\u009F]/g, '')
+
                 .replace(/[^\x20-\x7E\u00A0-\u00FF\n]/g, ' ');
         }
         
@@ -1135,12 +1133,10 @@
                 const formData = new FormData(this);
                 const fullName = sanitizeInputText(formData.get('fullName'));
                 const discordTag = sanitizeInputText(formData.get('discordTag'));
-                const invoiceSequence = sanitizeInputText(formData.get('invoiceSequence'));
+                const invoiceNumber = sanitizeInputText(formData.get('invoiceNumber'));
                 const invoiceDate = sanitizeInputText(formData.get('invoiceDate'));
                 const department = sanitizeInputText(formData.get('department'));
                 const paymentRegion = sanitizeInputText(formData.get('paymentRegion'));
-                const initials = getInitials(fullName);
-                const invoiceNumber = `${initials}-${invoiceSequence}`;
                 
                 const lineItemsArray = collectLineItemsForPdf(); 
                 const structuredBankingInfo = collectBankingDetailsForPdf(paymentRegion, formData);
@@ -1150,9 +1146,7 @@
                 }
                 
                 const frontwindAddress = '8 THE GREEN A, DOVER, 19901 Delaware, United States';
-                const frontwindTin = sanitizeInputText(formData.get('frontwindTin'));
-                const billToLines = ['Frontwind LLC', frontwindAddress];
-                if (frontwindTin) billToLines.push(`TIN: ${frontwindTin}`);
+
 
                 const invoiceData = {
                     from: escapePdfText(`${fullName} (${discordTag})`),
@@ -1319,22 +1313,16 @@
                     color: textColor
                 });
                 
-                const billToLines = invoiceData.to.split('\n');
-                const lineSpacing = 15;
-                let billToY = page.getHeight() - 200;
-                billToLines.forEach(line => {
-                    page.drawText(line, {
-                        x: margin,
-                        y: billToY,
+
                         size: normalSize,
                         font: helveticaFont,
                         color: textColor
                     });
-                    billToY -= lineSpacing;
+
                 });
 
                 // Move the date, due date, and balance due info under "Bill To" section
-                const infoY = billToY - 15;
+
                 
                 // Draw a light background for the info box
                 page.drawRectangle({
@@ -1791,7 +1779,7 @@
             document.querySelectorAll('.error-message').forEach(el => el.remove());
             let isValid = true;
             
-            const requiredTopLevelFields = ['fullName', 'discordTag', 'invoiceSequence', 'invoiceDate', 'department'];
+            const requiredTopLevelFields = ['fullName', 'discordTag', 'invoiceNumber', 'invoiceDate', 'department'];
             requiredTopLevelFields.forEach(id => {
                 const field = document.getElementById(id);
                 if (field && !field.value.trim()) {
@@ -1825,9 +1813,7 @@
             }
 
 
-            const invoiceSeqField = document.getElementById('invoiceSequence');
-            if (!invoiceSeqField.value.trim()) {
-                showError(invoiceSeqField, 'Invoice number is required.'); isValid = false;
+
             }
             if (getInitials(document.getElementById('fullName').value.trim()) === '') {
                  showError(document.getElementById('fullName'), 'Cannot derive initials. Please provide a valid name.'); isValid = false;
