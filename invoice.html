@@ -161,9 +161,9 @@
         
         /* .invoice-number-prefix { ... } // Removed this entire block */
         
-        /* #invoiceSequence.with-prefix { ... } // Removed this entire block */
+        /* #invoiceNumber.with-prefix { ... } // Removed this entire block */
 
-         #invoiceSequence { /* Base styles for the input, if not already covered globally */
+         #invoiceNumber { /* Base styles for the input, if not already covered globally */
             font-size: 0.875rem; /* Match prefix font size */
         }
         
@@ -197,13 +197,13 @@
             .line-item .grid { gap: 0.5rem; }
             .invoice-number-container { margin-bottom: 0.75rem; }
             /* .invoice-number-prefix { left: 10px; font-size: 0.95rem; } // Removed */
-            /* #invoiceSequence.with-prefix { padding-left: 40px !important; } // Removed */
+            /* #invoiceNumber.with-prefix { padding-left: 40px !important; } // Removed */
         }
         
         @media (max-width: 480px) {
             .invoice-number-container { margin-bottom: 0.5rem; }
             /* .invoice-number-prefix { left: 8px; font-size: 0.9rem; } // Removed */
-            /* #invoiceSequence.with-prefix { padding-left: 35px !important; } // Removed */
+            /* #invoiceNumber.with-prefix { padding-left: 35px !important; } // Removed */
             .card, .section { padding: 1rem; }
             .line-item { padding: 0.75rem; }
         }
@@ -255,16 +255,21 @@
                 
                 <div class="form-group">
                     <label>Who is this invoice to</label>
-                    <div class="recipient-fixed">Frontwind LLC</div>
+                    <div class="recipient-fixed">Frontwind LLC<br>8 THE GREEN A, DOVER, 19901 Delaware, United States</div>
+                </div>
+                <div class="form-group">
+                    <label for="frontwindEin">Frontwind EIN (optional)</label>
+                    <input type="text" id="frontwindEin" name="frontwindEin">
+                    <div class="text-xs text-gray-400 mt-1">Optional. Only required for Italy, Spain, Brazil, Argentina, and Mexico.</div>
                 </div>
                 
                 <div class="grid">
                     <div class="form-group">
-                        <label for="invoiceSequence">Invoice Number *</label>
+                        <label for="invoiceNumber">Invoice Number *</label>
                         <div class="invoice-number-container">
-                            <input type="text" id="invoiceSequence" name="invoiceSequence" placeholder="01, 02…" required pattern="\d{2,}" title="Must be at least 2 digits (e.g., 01, 02...)">
+                            <input type="text" id="invoiceNumber" name="invoiceNumber" placeholder="e.g., SH-01" required>
                         </div>
-                        <div class="text-xs text-gray-400 mt-1">Enter the full invoice number (e.g., SH-01, AB-123). Ensure it includes your initials and a sequence number.</div>
+                        <div class="text-xs text-gray-400 mt-1">Enter the full invoice number, including your initials and a sequence (e.g., SH-01, AB-123).</div>
                     </div>
                     <div class="form-group">
                         <label for="invoiceDate">Invoice Date *</label>
@@ -458,16 +463,16 @@
         document.getElementById('fullName').addEventListener('input', function() {
             const initials = getInitials(this.value);
             const initialsPrefix = document.getElementById('initialsPrefix');
-            const invoiceSeqInput = document.getElementById('invoiceSequence');
+            const invoiceNumberInput = document.getElementById('invoiceNumber');
             
             if (initials) {
                 // initialsPrefix.textContent = `${initials}-`; // Removed
                 // initialsPrefix.style.display = 'flex'; // Removed
-                // invoiceSeqInput.classList.add('with-prefix'); // Removed
+                // invoiceNumberInput.classList.add('with-prefix'); // Removed
             } else {
                 // initialsPrefix.textContent = ''; // Removed
                 // initialsPrefix.style.display = 'none'; // Removed
-                // invoiceSeqInput.classList.remove('with-prefix'); // Removed
+                // invoiceNumberInput.classList.remove('with-prefix'); // Removed
             }
         });
         
@@ -560,7 +565,11 @@
         
         function escapePdfText(text) {
             if (text === null || typeof text === 'undefined') return '';
-            return String(text).replace(/[\u0000-\u001F]/g, '').replace(/[\u007F-\u009F]/g, '').replace(/[^\x20-\x7E\u00A0-\u00FF]/g, ' ');
+            return String(text)
+                .replace(/\r\n/g, '\n')
+                .replace(/\r/g, '\n')
+                .replace(/[\x00-\x09\x0B-\x1F\x7F-\x9F]/g, '')
+                .replace(/[^\x20-\x7E\u00A0-\u00FF\n]/g, ' ');
         }
         
         function addLineItem() {
@@ -1127,12 +1136,10 @@
                 const formData = new FormData(this);
                 const fullName = sanitizeInputText(formData.get('fullName'));
                 const discordTag = sanitizeInputText(formData.get('discordTag'));
-                const invoiceSequence = sanitizeInputText(formData.get('invoiceSequence'));
+                const invoiceNumber = sanitizeInputText(formData.get('invoiceNumber'));
                 const invoiceDate = sanitizeInputText(formData.get('invoiceDate'));
                 const department = sanitizeInputText(formData.get('department'));
                 const paymentRegion = sanitizeInputText(formData.get('paymentRegion'));
-                const initials = getInitials(fullName);
-                const invoiceNumber = `${initials}-${invoiceSequence}`;
                 
                 const lineItemsArray = collectLineItemsForPdf(); 
                 const structuredBankingInfo = collectBankingDetailsForPdf(paymentRegion, formData);
@@ -1141,10 +1148,15 @@
                     saveUserDefaults({ fullName, discordTag, department, paymentRegion });
                 }
                 
+                const frontwindAddress = '8 THE GREEN A, DOVER, 19901 Delaware, United States';
+                const frontwindEin = sanitizeInputText(formData.get('frontwindEin'));
+                const billToLines = ['Frontwind LLC', frontwindAddress];
+                if (frontwindEin) billToLines.push(`EIN: ${frontwindEin}`);
+
                 const invoiceData = {
                     from: escapePdfText(`${fullName} (${discordTag})`),
-                    to: escapePdfText("Frontwind LLC"), 
-                    number: escapePdfText(invoiceNumber), 
+                    to: escapePdfText(billToLines.join('\n')),
+                    number: escapePdfText(invoiceNumber),
                     date: escapePdfText(invoiceDate), 
                     currency: "usd",
                     items: lineItemsArray.map(item => ({ 
@@ -1306,16 +1318,20 @@
                     color: textColor
                 });
                 
-                page.drawText(invoiceData.to, {
-                    x: margin,
-                    y: page.getHeight() - 200,
-                    size: normalSize,
-                    font: helveticaFont,
-                    color: textColor
+                const billToLinesPdf = invoiceData.to.split('\n');
+                let billToStartY = page.getHeight() - 200;
+                billToLinesPdf.forEach((line, idx) => {
+                    page.drawText(line, {
+                        x: margin,
+                        y: billToStartY - (idx * 15),
+                        size: normalSize,
+                        font: helveticaFont,
+                        color: textColor
+                    });
                 });
                 
                 // Move the date, due date, and balance due info under "Bill To" section
-                const infoY = page.getHeight() - 230;
+                const infoY = page.getHeight() - 230 - (billToLinesPdf.length - 1) * 15;
                 
                 // Draw a light background for the info box
                 page.drawRectangle({
@@ -1772,7 +1788,7 @@
             document.querySelectorAll('.error-message').forEach(el => el.remove());
             let isValid = true;
             
-            const requiredTopLevelFields = ['fullName', 'discordTag', 'invoiceSequence', 'invoiceDate', 'department'];
+            const requiredTopLevelFields = ['fullName', 'discordTag', 'invoiceNumber', 'invoiceDate', 'department'];
             requiredTopLevelFields.forEach(id => {
                 const field = document.getElementById(id);
                 if (field && !field.value.trim()) {
@@ -1785,8 +1801,8 @@
             }
             
             const paymentRegion = document.getElementById('paymentRegion').value;
-            const activeRegionRequiredFields = paymentRegion === 'US' ? 
-                ['us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber', 'us_taxId'] :
+            const activeRegionRequiredFields = paymentRegion === 'US' ?
+                ['us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber'] :
                 ['intl_country', 'intl_accountName', 'intl_bankName']; // Base INTL, others vary
 
             activeRegionRequiredFields.forEach(id => {
@@ -1806,9 +1822,9 @@
             }
 
 
-            const invoiceSeqField = document.getElementById('invoiceSequence');
-            if (!/^\d{2,}$/.test(invoiceSeqField.value)) {
-                showError(invoiceSeqField, 'Must be at least 2 digits (e.g., 01, 02...).'); isValid = false;
+            const invoiceNumberField = document.getElementById('invoiceNumber');
+            if (!invoiceNumberField.value.trim()) {
+                showError(invoiceNumberField, 'This field is required.'); isValid = false;
             }
             if (getInitials(document.getElementById('fullName').value.trim()) === '') {
                  showError(document.getElementById('fullName'), 'Cannot derive initials. Please provide a valid name.'); isValid = false;
