@@ -258,7 +258,8 @@
                     <div class="recipient-fixed">Frontwind LLC<br>8 THE GREEN A, DOVER, 19901 Delaware, United States</div>
                 </div>
                 <div class="form-group">
-
+                    <label for="einNumber">Frontwind EIN (optional)</label>
+                    <input type="text" id="einNumber" name="einNumber" placeholder="EIN for tax purposes">
                     <div class="text-xs text-gray-400 mt-1">Optional. Only required for Italy, Spain, Brazil, Argentina, and Mexico.</div>
                 </div>
                 
@@ -266,7 +267,7 @@
                     <div class="form-group">
                         <label for="invoiceNumber">Invoice Number *</label>
                         <div class="invoice-number-container">
-
+                            <input type="text" id="invoiceNumber" name="invoiceNumber" placeholder="e.g., SH-01" required>
                         </div>
                         <div class="text-xs text-gray-400 mt-1">Enter the full invoice number, including your initials and a sequence (e.g., SH-01, AB-123).</div>
                     </div>
@@ -1146,7 +1147,9 @@
                 }
                 
                 const frontwindAddress = '8 THE GREEN A, DOVER, 19901 Delaware, United States';
-
+                const einNumber = sanitizeInputText(formData.get('einNumber'));
+                const billToLines = ['Frontwind LLC', frontwindAddress];
+                if (einNumber) billToLines.push('EIN: ' + einNumber);
 
                 const invoiceData = {
                     from: escapePdfText(`${fullName} (${discordTag})`),
@@ -1312,18 +1315,22 @@
                     font: helveticaBold,
                     color: textColor
                 });
-                
 
+                const billToLinesPdf = invoiceData.to.split('\n');
+                let billToStartY = page.getHeight() - 200;
+                billToLinesPdf.forEach((line, idx) => {
+                    page.drawText(line, {
+                        x: margin,
+                        y: billToStartY - (idx * 15),
                         size: normalSize,
                         font: helveticaFont,
                         color: textColor
                     });
-
                 });
 
                 // Move the date, due date, and balance due info under "Bill To" section
+                const infoY = page.getHeight() - 230 - (billToLinesPdf.length - 1) * 15;
 
-                
                 // Draw a light background for the info box
                 page.drawRectangle({
                     x: margin,
@@ -1810,10 +1817,6 @@
                          showError(field, 'This banking detail is required for the selected country.'); isValid = false;
                     }
                 });
-            }
-
-
-
             }
             if (getInitials(document.getElementById('fullName').value.trim()) === '') {
                  showError(document.getElementById('fullName'), 'Cannot derive initials. Please provide a valid name.'); isValid = false;
