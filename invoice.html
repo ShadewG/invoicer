@@ -255,7 +255,12 @@
                 
                 <div class="form-group">
                     <label>Who is this invoice to</label>
-                    <div class="recipient-fixed">Frontwind LLC</div>
+                    <div class="recipient-fixed">Frontwind LLC<br>8 THE GREEN A, DOVER, 19901 Delaware, United States</div>
+                </div>
+                <div class="form-group">
+                    <label for="frontwindTin">Frontwind TIN (optional)</label>
+                    <input type="text" id="frontwindTin" name="frontwindTin">
+                    <div class="text-xs text-gray-400 mt-1">Optional. Only required for Italy, Spain, Brazil, Argentina, and Mexico.</div>
                 </div>
                 
                 <div class="grid">
@@ -1141,10 +1146,15 @@
                     saveUserDefaults({ fullName, discordTag, department, paymentRegion });
                 }
                 
+                const frontwindAddress = '8 THE GREEN A, DOVER, 19901 Delaware, United States';
+                const frontwindTin = sanitizeInputText(formData.get('frontwindTin'));
+                const billToLines = ['Frontwind LLC', frontwindAddress];
+                if (frontwindTin) billToLines.push(`TIN: ${frontwindTin}`);
+
                 const invoiceData = {
                     from: escapePdfText(`${fullName} (${discordTag})`),
-                    to: escapePdfText("Frontwind LLC"), 
-                    number: escapePdfText(invoiceNumber), 
+                    to: escapePdfText(billToLines.join('\n')),
+                    number: escapePdfText(invoiceNumber),
                     date: escapePdfText(invoiceDate), 
                     currency: "usd",
                     items: lineItemsArray.map(item => ({ 
@@ -1785,8 +1795,8 @@
             }
             
             const paymentRegion = document.getElementById('paymentRegion').value;
-            const activeRegionRequiredFields = paymentRegion === 'US' ? 
-                ['us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber', 'us_taxId'] :
+            const activeRegionRequiredFields = paymentRegion === 'US' ?
+                ['us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber'] :
                 ['intl_country', 'intl_accountName', 'intl_bankName']; // Base INTL, others vary
 
             activeRegionRequiredFields.forEach(id => {
