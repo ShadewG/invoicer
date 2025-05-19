@@ -1,0 +1,1934 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frontwind LLC Invoice Generator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <script src="https://unpkg.com/downloadjs@1.4.7/download.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body {
+            background-color: #1a202c;
+            color: #e2e8f0;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+        }
+
+        .header {
+            background: linear-gradient(to right, #6b46c1, #4c1d95);
+            padding: 2rem 0;
+            text-align: center;
+        }
+
+        .card {
+            background-color: #2d3748;
+            border-radius: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            margin: 2rem auto;
+            max-width: 800px;
+            padding: 2rem;
+            border-top: 4px solid #805ad5;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #a0aec0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            background-color: #4a5568;
+            border: 1px solid #2d3748;
+            color: white;
+            margin-bottom: 1rem;
+            box-sizing: border-box;
+            font-size: 0.875rem; /* Consistent font size for inputs */
+            line-height: 1.5; /* Consistent line height */
+        }
+
+        input:focus, textarea:focus, select:focus {
+            outline: none;
+            border-color: #805ad5;
+            box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.3);
+        }
+
+        button {
+            background-color: #805ad5;
+            color: white;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.25rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #6b46c1;
+        }
+
+        .section {
+            margin-bottom: 1.5rem;
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            background-color: #2d3748;
+            border: 1px solid #4a5568;
+        }
+
+        .section-title {
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            color: #a0aec0;
+            border-bottom: 1px solid #4a5568;
+            padding-bottom: 0.5rem;
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 2rem;
+            padding: 1rem;
+            font-size: 0.875rem;
+            color: #718096;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .card {
+                padding: 1.5rem;
+                margin: 1rem;
+            }
+            
+            label {
+                white-space: normal;
+            }
+        }
+
+        @media (max-width: 500px) {
+            .card {
+                padding: 1rem;
+                margin: 0.5rem;
+            }
+        }
+
+        .line-item {
+            border: 1px solid #4a5568;
+            padding: 1rem;
+            border-radius: 0.5rem;
+            margin-bottom: 1rem;
+            overflow: hidden; /* Prevent content overflow */
+        }
+
+        .add-button {
+            background-color: transparent;
+            border: 1px dashed #805ad5;
+            color: #805ad5;
+            display: block;
+            width: 100%;
+            padding: 0.75rem;
+        }
+        
+        /* Revised invoice number prefix styling */
+        .invoice-number-container {
+            position: relative;
+            /* margin-bottom: 1rem; /* From original, can be kept or removed if form-group handles spacing */
+            width: 100%;
+            display: flex;
+            align-items: center;
+        }
+        
+        /* .invoice-number-prefix { ... } // Removed this entire block */
+        
+        /* #invoiceSequence.with-prefix { ... } // Removed this entire block */
+
+         #invoiceSequence { /* Base styles for the input, if not already covered globally */
+            font-size: 0.875rem; /* Match prefix font size */
+        }
+        
+        .recipient-fixed {
+            background-color: #374151;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            color: #9ca3af;
+            font-style: italic;
+            margin-bottom: 1rem;
+            border: 1px dashed #4b5563;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+        
+        #invoiceForm input,
+        #invoiceForm select,
+        #invoiceForm textarea {
+            margin-bottom: 0.5rem;
+        }
+        
+        @media (max-width: 768px) {
+            .payment-fields {
+                margin-top: 1rem;
+            }
+            input[type="date"], input[type="month"] { min-width: 100%; }
+            select { width: 100%; min-width: 100%; }
+            .line-item .grid { gap: 0.5rem; }
+            .invoice-number-container { margin-bottom: 0.75rem; }
+            /* .invoice-number-prefix { left: 10px; font-size: 0.95rem; } // Removed */
+            /* #invoiceSequence.with-prefix { padding-left: 40px !important; } // Removed */
+        }
+        
+        @media (max-width: 480px) {
+            .invoice-number-container { margin-bottom: 0.5rem; }
+            /* .invoice-number-prefix { left: 8px; font-size: 0.9rem; } // Removed */
+            /* #invoiceSequence.with-prefix { padding-left: 35px !important; } // Removed */
+            .card, .section { padding: 1rem; }
+            .line-item { padding: 0.75rem; }
+        }
+        
+        .highlight-field { border-left: 3px solid #805ad5; padding-left: 0.5rem; }
+        .highlight-field label { color: #d6bcfa; font-weight: 600; }
+        .error-message { color: #f56565; font-size: 0.875rem; margin-top: -0.25rem; margin-bottom: 0.5rem;} /* Adjusted margin */
+        .max-items-warning { background-color: #553c9a; color: white; padding: 0.5rem; text-align: center; margin-top: 0.5rem; border-radius: 0.25rem; display: none; }
+        .char-counter { font-size: 0.75rem; color: #a0aec0; text-align: right; margin-top: 0.25rem; }
+
+        .options-container { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #4a5568; }
+        .options-container button { white-space: nowrap; text-align: center; }
+        .options-container .form-group { flex: 0 0 auto; }
+        button[type="submit"] { margin-left: auto; }
+        
+        @media (max-width: 768px) {
+            .options-container { flex-direction: column; align-items: stretch; }
+            .options-container button, .options-container .form-group { width: 100%; }
+            button[type="submit"] { margin-left: 0; margin-top: 1rem; padding: 0.75rem; }
+            #clearSavedData { text-align: center; padding: 0.5rem; margin-bottom: 0.5rem; }
+            .payment-fields { margin-top: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1 class="text-white">Frontwind LLC Invoice Generator</h1>
+        <p class="text-purple-200">Create professional invoices in seconds</p>
+    </div>
+    
+    <div class="card">
+        <h2 class="text-xl font-semibold text-purple-300 mb-4">Generate Invoice</h2>
+        <p class="mb-6 text-gray-400">Follow the Frontwind LLC invoicing SOP exactly. All fields marked * are mandatory.</p>
+        
+        <form id="invoiceForm">
+            <!-- Who is this invoice from -->
+            <div class="section" style="background-color: #283042; border-color: #3b4a61;">
+                <h3 class="section-title text-purple-300">Who is this invoice from</h3>
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="fullName">Full Legal Name *</label>
+                        <input type="text" id="fullName" name="fullName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="discordTag">Discord Username / Tag *</label>
+                        <input type="text" id="discordTag" name="discordTag" placeholder="example#1234" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Who is this invoice to</label>
+                    <div class="recipient-fixed">Frontwind LLC</div>
+                </div>
+                
+                <div class="grid">
+                    <div class="form-group">
+                        <label for="invoiceSequence">Invoice Number *</label>
+                        <div class="invoice-number-container">
+                            <input type="text" id="invoiceSequence" name="invoiceSequence" placeholder="01, 02…" required pattern="\d{2,}" title="Must be at least 2 digits (e.g., 01, 02...)">
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1">Enter the full invoice number (e.g., SH-01, AB-123). Ensure it includes your initials and a sequence number.</div>
+                    </div>
+                    <div class="form-group">
+                        <label for="invoiceDate">Invoice Date *</label>
+                        <input type="date" id="invoiceDate" name="invoiceDate" required>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Line Items -->
+            <div class="section" style="background-color: #282e3f; border-color: #3b4663;">
+                <h3 class="section-title text-indigo-300">Description of service or product</h3>
+                <div id="lineItems">
+                    <!-- Line items will be added here -->
+                </div>
+                <button type="button" id="addLineItem" class="add-button mt-4">+ Add Line Item</button>
+                <div id="maxItemsWarning" class="max-items-warning">
+                    Warning: Adding too many line items may cause PDF generation issues. Consider splitting into multiple invoices.
+                </div>
+            </div>
+
+            <!-- Payment Region & Banking Details -->
+            <div class="section" style="background-color: #283640; border-color: #3a546b;">
+                <h3 class="section-title text-teal-300">Payment Method & Banking Details</h3>
+                
+                <div class="mb-6 form-group">
+                    <label for="paymentRegion">Payment Region *</label>
+                    <select id="paymentRegion" name="paymentRegion" required>
+                        <option value="INTL">International (Outside US)</option>
+                        <option value="US">United States</option>
+                    </select>
+                </div>
+                
+                <!-- International Fields -->
+                <div id="intlFields" class="mb-6 p-4 border border-teal-900 rounded-lg" style="background-color: #22353d;">
+                    <h4 class="text-md font-medium text-teal-300 mb-4 pb-2 border-b border-teal-900">International Wire / IBAN Details</h4>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_country">Country *</label>
+                            <input type="text" id="intl_country" name="intl_country" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_address">Personal Address</label>
+                            <input type="text" id="intl_address" name="intl_address">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_phone">Phone Number (with country code)</label>
+                            <input type="text" id="intl_phone" name="intl_phone">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_city">City</label>
+                            <input type="text" id="intl_city" name="intl_city">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_province">Province / State</label>
+                            <input type="text" id="intl_province" name="intl_province">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_postal">Postal Code / Zip</label>
+                            <input type="text" id="intl_postal" name="intl_postal">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_accountName">Account Name *</label>
+                            <input type="text" id="intl_accountName" name="intl_accountName" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_bankName">Bank Name *</label>
+                            <input type="text" id="intl_bankName" name="intl_bankName" required>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_bankAddress">Bank Address</label>
+                            <input type="text" id="intl_bankAddress" name="intl_bankAddress">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_currency">Account Currency</label>
+                            <input type="text" id="intl_currency" name="intl_currency" placeholder="USD, EUR, GBP, etc.">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_accountType">Account Type</label>
+                            <select id="intl_accountType" name="intl_accountType">
+                                <option value="Personal">Personal</option>
+                                <option value="Business">Business</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label for="intl_accountSubtype">Account Subtype</label>
+                            <select id="intl_accountSubtype" name="intl_accountSubtype">
+                                <option value="Checking">Checking</option>
+                                <option value="Savings">Savings</option>
+                            </select>
+                        </div>
+                        <div class="form-group banking-field swift-container" style="margin-bottom: 0;">
+                            <label for="intl_swift">SWIFT / BIC *</label>
+                            <input type="text" id="intl_swift" name="intl_swift" required>
+                        </div>
+                        <div class="form-group banking-field account-number-container" style="margin-bottom: 0;">
+                            <label for="intl_accountNumber">Account Number *</label>
+                            <input type="text" id="intl_accountNumber" name="intl_accountNumber" required>
+                        </div>
+                        <div class="form-group banking-field iban-container" style="margin-bottom: 0;">
+                            <label for="intl_iban">IBAN</label>
+                            <input type="text" id="intl_iban" name="intl_iban">
+                            <div class="text-xs text-gray-400 mt-1">Often required/preferred for European and some other countries</div>
+                        </div>
+                    </div>
+                    <div class="mt-4 form-group">
+                        <label for="intl_otherInfo">Any other information</label>
+                        <textarea id="intl_otherInfo" name="intl_otherInfo" rows="3"></textarea>
+                    </div>
+                </div>
+
+                <!-- US Fields -->
+                <div id="usFields" class="mb-6 p-4 border border-teal-900 rounded-lg" style="display: none; background-color: #22353d;">
+                    <h4 class="text-md font-medium text-teal-300 mb-4 pb-2 border-b border-teal-900">United States Wire / ACH Details</h4>
+                    <div class="mb-4 p-3 rounded bg-teal-900 bg-opacity-20">
+                        <h5 class="text-sm font-medium text-teal-200 mb-2 pb-1 border-b border-teal-900 border-opacity-50">Address Information</h5>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-group" style="margin-bottom: 0;"> <label for="us_address">Address *</label> <input type="text" id="us_address" name="us_address"> </div>
+                            <div class="form-group" style="margin-bottom: 0;"> <label for="us_city">City *</label> <input type="text" id="us_city" name="us_city"> </div>
+                            <div class="form-group" style="margin-bottom: 0;"> <label for="us_state">State *</label> <input type="text" id="us_state" name="us_state"> </div>
+                            <div class="form-group" style="margin-bottom: 0;"> <label for="us_zip">Zip Code *</label> <input type="text" id="us_zip" name="us_zip"> </div>
+                        </div>
+                    </div>
+                    <div class="mb-4 p-3 rounded bg-teal-900 bg-opacity-20">
+                        <h5 class="text-sm font-medium text-teal-200 mb-2 pb-1 border-b border-teal-900 border-opacity-50">Banking Information</h5>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-group" style="margin-bottom: 0;"> <label for="us_bankName">Bank Name *</label> <input type="text" id="us_bankName" name="us_bankName"> </div>
+                            <div class="form-group" style="margin-bottom: 0;"> <label for="us_accountName">Account Name *</label> <input type="text" id="us_accountName" name="us_accountName"> </div>
+                            <div class="form-group highlight-field" style="margin-bottom: 0;"> <label for="us_routingNumber">ABA Routing Number *</label> <input type="text" id="us_routingNumber" name="us_routingNumber"> </div>
+                            <div class="form-group highlight-field" style="margin-bottom: 0;"> <label for="us_accountNumber">Account Number *</label> <input type="text" id="us_accountNumber" name="us_accountNumber"> </div>
+                        </div>
+                    </div>
+                    <div class="mb-4 p-3 rounded bg-teal-900 bg-opacity-20">
+                        <h5 class="text-sm font-medium text-teal-200 mb-2 pb-1 border-b border-teal-900 border-opacity-50">Account Details</h5>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="form-group" style="margin-bottom: 0;"> <label for="us_accountType">Account Type</label> <select id="us_accountType" name="us_accountType"> <option value="Personal">Personal</option> <option value="Business">Business</option> </select> </div>
+                            <div class="form-group" style="margin-bottom: 0;"> <label for="us_accountSubtype">Account Subtype</label> <select id="us_accountSubtype" name="us_accountSubtype"> <option value="Checking">Checking</option> <option value="Savings">Savings</option> </select> </div>
+                            <div class="form-group" style="margin-bottom: 0;"> <label for="us_transferType">Transfer Type</label> <select id="us_transferType" name="us_transferType"> <option value="Wire">Wire</option> <option value="ACH">ACH</option> </select> </div>
+                        </div>
+                    </div>
+                    <div class="mt-4"> <p class="text-xs text-gray-400"> For US providers, a W-9 may be required. Please have it ready if requested. </p> </div>
+                </div>
+            </div>
+            
+            <div class="section" style="background-color: #2d3748; border-color: #4a5568;">
+                <h3 class="section-title text-blue-300">Department</h3>
+                <div class="form-group">
+                    <label for="department">Department *</label>
+                    <input type="text" id="department" name="department" placeholder="e.g. Production" required>
+                </div>
+            </div>
+
+            <div class="options-container">
+                <div class="form-group" style="margin-bottom: 0;">
+                    <input type="checkbox" id="saveDefaults" name="saveDefaults" style="width: auto; display: inline-block; vertical-align: middle; margin-bottom: 0;">
+                    <label for="saveDefaults" style="display: inline; margin-left: 0.5rem;">Save Defaults</label>
+                </div>
+                <div class="text-sm text-gray-400" id="lastSavedInfo" style="display: none;"></div>
+                <button type="button" id="clearSavedData" class="text-red-400 hover:text-red-300 text-sm"> Clear Saved Data </button>
+                <button type="submit" class="bg-gradient-to-r from-purple-600 to-indigo-700 hover:from-purple-700 hover:to-indigo-800"> Generate & Download PDF </button>
+            </div>
+        </form>
+    </div>
+    
+    <div class="footer">
+        <p>© <span id="currentYear"></span> Frontwind LLC Invoice Generator</p>
+        <p class="mt-1">All data is processed locally in your browser. No information is sent to our servers.</p>
+    </div>
+
+    <script>
+        // Debug function
+        function debug(msg, obj) {
+            console.log(msg, obj);
+            const debugEl = document.getElementById('debug-output') || (() => {
+                const el = document.createElement('div');
+                el.id = 'debug-output';
+                el.style.cssText = 'position:fixed;bottom:10px;right:10px;background:#333;color:#fff;z-index:9999;padding:10px;max-width:400px;overflow:auto;max-height:200px;font-family:monospace;';
+                document.body.appendChild(el);
+                return el;
+            })();
+            
+            debugEl.innerHTML = msg + ': ' + JSON.stringify(obj) + '<br>' + debugEl.innerHTML.slice(0, 1000);
+        }
+        
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+        document.getElementById('invoiceDate').valueAsDate = new Date();
+        
+        function getInitials(name) {
+            return name.split(/\s+/).filter(Boolean).map(n => n[0]?.toUpperCase()).slice(0, 2).join('');
+        }
+        
+        document.getElementById('fullName').addEventListener('input', function() {
+            const initials = getInitials(this.value);
+            const initialsPrefix = document.getElementById('initialsPrefix');
+            const invoiceSeqInput = document.getElementById('invoiceSequence');
+            
+            if (initials) {
+                // initialsPrefix.textContent = `${initials}-`; // Removed
+                // initialsPrefix.style.display = 'flex'; // Removed
+                // invoiceSeqInput.classList.add('with-prefix'); // Removed
+            } else {
+                // initialsPrefix.textContent = ''; // Removed
+                // initialsPrefix.style.display = 'none'; // Removed
+                // invoiceSeqInput.classList.remove('with-prefix'); // Removed
+            }
+        });
+        
+        document.getElementById('paymentRegion').addEventListener('change', function() {
+            debug('Payment region changed to', this.value);
+            
+            if (this.value === 'US') {
+                document.getElementById('usFields').style.display = 'block';
+                document.getElementById('intlFields').style.display = 'none';
+                makeFieldsRequired('us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber');
+                makeFieldsOptional('intl_country', 'intl_accountName', 'intl_bankName', 'intl_swift', 'intl_accountNumber', 'intl_iban');
+            } else { // INTL
+                document.getElementById('usFields').style.display = 'none';
+                document.getElementById('intlFields').style.display = 'block';
+                makeFieldsRequired('intl_country', 'intl_accountName', 'intl_bankName');
+                // Note: adjustInternationalBankingFields will handle 'intl_swift', 'intl_accountNumber', 'intl_iban' requirements
+                const intlCountryEl = document.getElementById('intl_country');
+                if (intlCountryEl) {
+                    intlCountryEl.addEventListener('change', adjustInternationalBankingFields);
+                    adjustInternationalBankingFields(); // Call once on 'INTL' selection
+                }
+                makeFieldsOptional('us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber');
+            }
+        });
+        
+        function adjustInternationalBankingFields() {
+            const countryInput = document.getElementById('intl_country');
+            if (!countryInput) return; // Safety check
+            const country = countryInput.value.trim().toLowerCase();
+            const europeanCountries = ['austria', 'belgium', 'bulgaria', 'croatia', 'cyprus', 'czech republic', 'czechia', 'denmark', 'estonia', 'finland', 'france', 'germany', 'greece', 'hungary', 'ireland', 'italy', 'latvia', 'lithuania', 'luxembourg', 'malta', 'netherlands', 'poland', 'portugal', 'romania', 'slovakia', 'slovenia', 'spain', 'sweden', 'iceland', 'liechtenstein', 'norway', 'switzerland', 'united kingdom', 'uk'];
+            const ibanCountries = [...europeanCountries, 'saudi arabia', 'qatar', 'united arab emirates', 'uae', 'kuwait', 'bahrain', 'lebanon', 'egypt', 'turkey', 'jordan', 'pakistan', 'tunisia', 'mauritius'];
+            
+            const ibanContainer = document.querySelector('.iban-container');
+            const swiftContainer = document.querySelector('.swift-container');
+            const accountNumberContainer = document.querySelector('.account-number-container');
+
+            if (ibanCountries.includes(country)) {
+                makeFieldsRequired('intl_iban');
+                makeFieldsOptional('intl_swift', 'intl_accountNumber');
+                if (ibanContainer) ibanContainer.classList.add('highlight-field');
+                if (swiftContainer) swiftContainer.classList.remove('highlight-field');
+                if (accountNumberContainer) accountNumberContainer.classList.remove('highlight-field');
+            } else {
+                makeFieldsRequired('intl_swift', 'intl_accountNumber');
+                makeFieldsOptional('intl_iban');
+                if (ibanContainer) ibanContainer.classList.remove('highlight-field');
+                if (swiftContainer) swiftContainer.classList.add('highlight-field');
+                if (accountNumberContainer) accountNumberContainer.classList.add('highlight-field');
+            }
+        }
+        
+        function makeFieldsRequired(...fieldIds) {
+            fieldIds.forEach(id => {
+                const field = document.getElementById(id);
+                if (field) {
+                    field.required = true;
+                    const label = field.closest('.form-group')?.querySelector('label') || field.previousElementSibling;
+                    if (label && label.tagName === 'LABEL' && !label.textContent.includes('*')) {
+                        label.textContent = label.textContent.trim() + ' *';
+                    }
+                }
+            });
+        }
+        
+        function makeFieldsOptional(...fieldIds) {
+            fieldIds.forEach(id => {
+                const field = document.getElementById(id);
+                if (field) {
+                    field.required = false;
+                    const label = field.closest('.form-group')?.querySelector('label') || field.previousElementSibling;
+                    if (label && label.tagName === 'LABEL') {
+                        label.textContent = label.textContent.replace(' *', '');
+                    }
+                }
+            });
+        }
+        
+        let lineItemCount = 0;
+        const MAX_LINE_ITEMS = 20;
+        
+        function sanitizeInputText(text) {
+            if (text === null || typeof text === 'undefined') return '';
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+        
+        function escapePdfText(text) {
+            if (text === null || typeof text === 'undefined') return '';
+            return String(text).replace(/[\u0000-\u001F]/g, '').replace(/[\u007F-\u009F]/g, '').replace(/[^\x20-\x7E\u00A0-\u00FF]/g, ' ');
+        }
+        
+        function addLineItem() {
+            lineItemCount++;
+            if (lineItemCount > MAX_LINE_ITEMS - 5) document.getElementById('maxItemsWarning').style.display = 'block';
+            if (lineItemCount >= MAX_LINE_ITEMS) {
+                document.getElementById('addLineItem').disabled = true;
+                document.getElementById('addLineItem').style.opacity = '0.5';
+                return;
+            }
+            
+            const newItem = document.createElement('div');
+            newItem.className = 'line-item';
+            newItem.dataset.id = lineItemCount;
+            newItem.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                    <div class="form-group" style="margin-bottom: 0;"> <label for="paymentType${lineItemCount}">Payment Type *</label> <select id="paymentType${lineItemCount}" name="paymentType${lineItemCount}" required data-item-id="${lineItemCount}"> <option value="PER_ITEM">Per Item</option> <option value="SALARY">Salary</option> <option value="BONUS">Bonus</option> <option value="CUSTOM">Custom</option> </select> </div>
+                    <div class="channel-field form-group" id="channelField${lineItemCount}" style="margin-bottom: 0;"> <label for="channel${lineItemCount}">Channel</label> <input type="text" id="channel${lineItemCount}" name="channel${lineItemCount}" maxlength="100"> </div>
+                    <div class="form-group" style="margin-bottom: 0;"> <label for="rate${lineItemCount}">Rate (USD) *</label> <input type="number" id="rate${lineItemCount}" name="rate${lineItemCount}" step="0.01" min="0.01" required> </div>
+                </div>
+                <div class="payment-fields" id="paymentFields${lineItemCount}"></div>
+                ${lineItemCount > 0 ? `<button type="button" class="remove-line-item mt-2 px-3 py-1 bg-red-700 hover:bg-red-600 text-red-100 rounded text-sm" data-id="${lineItemCount}">Remove</button>` : ''}
+            `; // Allow removing the first item too
+            document.getElementById('lineItems').appendChild(newItem);
+            
+            const select = document.getElementById(`paymentType${lineItemCount}`);
+            select.addEventListener('change', function() { updatePaymentFields(this.dataset.itemId, this.value); });
+            updatePaymentFields(lineItemCount, 'PER_ITEM');
+            
+            const removeBtn = newItem.querySelector('.remove-line-item');
+            if(removeBtn) { // Check if button exists
+                removeBtn.addEventListener('click', function() {
+                    const itemId = this.dataset.id;
+                    document.querySelector(`.line-item[data-id="${itemId}"]`).remove();
+                    document.getElementById('addLineItem').disabled = false;
+                    document.getElementById('addLineItem').style.opacity = '1';
+                    if (document.querySelectorAll('.line-item').length <= MAX_LINE_ITEMS - 5) {
+                        document.getElementById('maxItemsWarning').style.display = 'none';
+                    }
+                    // If all items are removed, lineItemCount should ideally be reset or handled.
+                    // For simplicity, we're just decrementing a visual counter notionally.
+                });
+            }
+        }
+        
+        function updatePaymentFields(itemId, paymentType) {
+            const fieldsContainer = document.getElementById(`paymentFields${itemId}`);
+            let fieldsHTML = '';
+            const channelField = document.getElementById(`channelField${itemId}`);
+            const channelInput = document.getElementById(`channel${itemId}`);
+            
+            if (!channelField || !channelInput) { console.error("Channel field not found for item " + itemId); return; }
+
+            switch(paymentType) {
+                case 'PER_ITEM':
+                    channelField.style.display = 'block'; channelInput.required = true; channelField.querySelector('label').textContent = 'Channel *';
+                    fieldsHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4"> <div class="form-group"> <label for="description${itemId}">Video Code/Title *</label> <input type="text" id="description${itemId}" name="description${itemId}" required maxlength="200"> </div> <div class="form-group"> <label for="approvedDate${itemId}">Approved Date *</label> <input type="date" id="approvedDate${itemId}" name="approvedDate${itemId}" required> </div> <div class="dubbing-container form-group col-span-full"> <input type="checkbox" id="isDubbing${itemId}" name="isDubbing${itemId}" style="width: auto; display: inline-block; vertical-align: middle; margin-bottom: 0;"> <label for="isDubbing${itemId}" style="display: inline; margin-left: 0.5rem;">Is this Dubbing work?</label> </div> <div id="dubbingField${itemId}" class="form-group col-span-full" style="display: none;"> <label for="dubbingLanguage${itemId}">Dubbing Language</label> <input type="text" id="dubbingLanguage${itemId}" name="dubbingLanguage${itemId}" maxlength="50"> </div> </div>`;
+                    break;
+                case 'SALARY':
+                    channelField.style.display = 'block'; channelInput.required = false; channelField.querySelector('label').textContent = 'Channel (optional)';
+                    fieldsHTML = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4"> <div class="form-group"> <label for="description${itemId}">Services Rendered *</label> <input type="text" id="description${itemId}" name="description${itemId}" required maxlength="200"> </div> <div class="form-group"> <label for="dateCovered${itemId}">Date Covered *</label> <input type="month" id="dateCovered${itemId}" name="dateCovered${itemId}" required> </div> </div>`;
+                    break;
+                case 'BONUS':
+                    channelField.style.display = 'block'; channelInput.required = true; channelField.querySelector('label').textContent = 'Channel *';
+                    fieldsHTML = `<div class="grid grid-cols-1 md:grid-cols-3 gap-4"> <div class="form-group"> <label for="description${itemId}">Video Code/Title *</label> <input type="text" id="description${itemId}" name="description${itemId}" required maxlength="200"> </div> <div class="form-group"> <label for="approvedDate${itemId}">Approved Date *</label> <input type="date" id="approvedDate${itemId}" name="approvedDate${itemId}" required> </div> <div class="form-group"> <label for="viewsGenerated${itemId}">Views Generated</label> <input type="number" id="viewsGenerated${itemId}" name="viewsGenerated${itemId}" min="0"> </div> </div>`;
+                    break;
+                case 'CUSTOM':
+                    channelField.style.display = 'none'; channelInput.required = false;
+                    fieldsHTML = `<div class="grid grid-cols-1 gap-4"> <div class="form-group"> <label for="customDescription${itemId}">Description *</label> <textarea id="customDescription${itemId}" name="customDescription${itemId}" rows="3" required maxlength="500"></textarea> <div class="char-counter" id="customDescriptionCounter${itemId}">0/500</div> </div> <div class="form-group"> <label for="customDate${itemId}">Date *</label> <input type="date" id="customDate${itemId}" name="customDate${itemId}" required> </div> </div>`;
+                    break;
+            }
+            fieldsContainer.innerHTML = fieldsHTML;
+            fieldsContainer.querySelectorAll('input[type="date"]').forEach(f => f.valueAsDate = new Date());
+            
+            const dubbingCheckbox = document.getElementById(`isDubbing${itemId}`);
+            if (dubbingCheckbox) dubbingCheckbox.addEventListener('change', function() { document.getElementById(`dubbingField${itemId}`).style.display = this.checked ? 'block' : 'none'; });
+            
+            const customDescTextarea = document.getElementById(`customDescription${itemId}`);
+            if (customDescTextarea) customDescTextarea.addEventListener('input', function() {
+                const counter = document.getElementById(`customDescriptionCounter${itemId}`);
+                counter.textContent = `${this.value.length}/500`;
+                counter.style.color = this.value.length > 400 ? '#f56565' : '#a0aec0';
+            });
+        }
+        
+        document.getElementById('addLineItem').addEventListener('click', addLineItem);
+
+        // START: Data collection and HTML generation for PDF
+        function collectLineItemsForPdf() {
+            const items = [];
+            document.querySelectorAll('#lineItems .line-item').forEach(itemEl => {
+                const itemId = itemEl.dataset.id;
+                const paymentTypeEl = itemEl.querySelector(`#paymentType${itemId}`);
+                const rateEl = itemEl.querySelector(`#rate${itemId}`);
+                if (!paymentTypeEl || !rateEl) { console.warn(`Skipping line item ${itemId}, elements not found.`); return; }
+
+                const paymentType = paymentTypeEl.value;
+                const rate = parseFloat(rateEl.value) || 0;
+                let description = "";
+                let quantity = 1;
+
+                const channelEl = itemEl.querySelector(`#channel${itemId}`);
+                const channel = channelEl ? channelEl.value : "";
+
+                switch(paymentType) {
+                    case 'PER_ITEM':
+                        const descEl = itemEl.querySelector(`#description${itemId}`);
+                        const approvedDateEl = itemEl.querySelector(`#approvedDate${itemId}`);
+                        const isDubbingEl = itemEl.querySelector(`#isDubbing${itemId}`);
+                        description = `Video: ${descEl ? descEl.value : 'N/A'}`;
+                        if (isDubbingEl?.checked) {
+                            const dubbingLangEl = itemEl.querySelector(`#dubbingLanguage${itemId}`);
+                            description += ` (Dubbing: ${dubbingLangEl ? dubbingLangEl.value : 'N/A'})`;
+                        }
+                        description += ` - Approved: ${approvedDateEl ? approvedDateEl.value : 'N/A'}`;
+                        break;
+                    case 'SALARY':
+                        const salaryDescEl = itemEl.querySelector(`#description${itemId}`);
+                        const dateCoveredEl = itemEl.querySelector(`#dateCovered${itemId}`);
+                        description = `Salary: ${salaryDescEl ? salaryDescEl.value : 'N/A'}`;
+                        description += ` - Month: ${dateCoveredEl ? dateCoveredEl.value : 'N/A'}`;
+                        break;
+                    case 'BONUS':
+                        const bonusDescEl = itemEl.querySelector(`#description${itemId}`);
+                        const bonusApprovedDateEl = itemEl.querySelector(`#approvedDate${itemId}`);
+                        const viewsEl = itemEl.querySelector(`#viewsGenerated${itemId}`);
+                        description = `Bonus: ${bonusDescEl ? bonusDescEl.value : 'N/A'}`;
+                        description += ` - Views: ${viewsEl ? viewsEl.value : 'N/A'}`;
+                        description += ` - Approved: ${bonusApprovedDateEl ? bonusApprovedDateEl.value : 'N/A'}`;
+                        break;
+                    case 'CUSTOM':
+                        const customDescEl = itemEl.querySelector(`#customDescription${itemId}`);
+                        const customDateEl = itemEl.querySelector(`#customDate${itemId}`);
+                        description = `Custom: ${customDescEl ? customDescEl.value : 'N/A'}`;
+                        description += ` - Date: ${customDateEl ? customDateEl.value : 'N/A'}`;
+                        break;
+                }
+                if (channel) description = `[${channel}] ${description}`;
+                items.push({ name: description, quantity: quantity, unit_cost: rate });
+            });
+            return items;
+        }
+
+        function collectBankingDetailsForPdf(paymentRegion, formData) {
+            debug('Collecting banking details for region', paymentRegion);
+            const bankingInfo = {
+                paymentMethodType: paymentRegion === 'US' ? "Domestic Wire/ACH" : "International Wire",
+                sections: [] // Array of sections, each section has a title and items
+            };
+
+            if (paymentRegion === 'US') {
+                let addressSection = { title: "Address Information", items: [] };
+                addressSection.items.push({ label: "Address", value: formData.get('us_address') || 'N/A' });
+                addressSection.items.push({ label: "City", value: formData.get('us_city') || 'N/A' });
+                addressSection.items.push({ label: "State", value: formData.get('us_state') || 'N/A' });
+                addressSection.items.push({ label: "Zip Code", value: formData.get('us_zip') || 'N/A' });
+                if(addressSection.items.some(item => item.value !== 'N/A')) bankingInfo.sections.push(addressSection);
+
+                let bankingSection = { title: "Banking Information", items: [] };
+                bankingSection.items.push({ label: "Bank Name", value: formData.get('us_bankName') || 'N/A' });
+                bankingSection.items.push({ label: "Account Name", value: formData.get('us_accountName') || 'N/A' });
+                bankingSection.items.push({ label: "ABA Routing Number", value: formData.get('us_routingNumber') || 'N/A', important: true });
+                bankingSection.items.push({ label: "Account Number", value: formData.get('us_accountNumber') || 'N/A', important: true });
+                if(bankingSection.items.some(item => item.value !== 'N/A')) bankingInfo.sections.push(bankingSection);
+                
+                let accountDetailsSection = { title: "Account Details", items: [] };
+                accountDetailsSection.items.push({ label: "Account Type", value: `${formData.get('us_accountType') || 'N/A'} ${formData.get('us_accountSubtype') || ''}`.trim() });
+                accountDetailsSection.items.push({ label: "Transfer Type", value: formData.get('us_transferType') || 'N/A' });
+                if(accountDetailsSection.items.some(item => item.value !== 'N/A' && item.value.trim() !== 'N/A')) bankingInfo.sections.push(accountDetailsSection);
+
+            } else { // INTL
+                let personalSection = { title: "Personal Information", items: [] };
+                personalSection.items.push({ label: "Country", value: formData.get('intl_country') || 'N/A' });
+                if (formData.get('intl_address')) personalSection.items.push({ label: "Address", value: formData.get('intl_address') });
+                if (formData.get('intl_city')) personalSection.items.push({ label: "City", value: formData.get('intl_city') });
+                if (formData.get('intl_province')) personalSection.items.push({ label: "Province/State", value: formData.get('intl_province') });
+                if (formData.get('intl_postal')) personalSection.items.push({ label: "Postal Code", value: formData.get('intl_postal') });
+                if (formData.get('intl_phone')) personalSection.items.push({ label: "Phone", value: formData.get('intl_phone') });
+                if(personalSection.items.some(item => item.value && item.value !== 'N/A')) bankingInfo.sections.push(personalSection);
+                
+                let intlBankingSection = { title: "Banking Information", items: [] };
+                intlBankingSection.items.push({ label: "Account Name", value: formData.get('intl_accountName') || 'N/A' });
+                intlBankingSection.items.push({ label: "Bank Name", value: formData.get('intl_bankName') || 'N/A' });
+                if (formData.get('intl_bankAddress')) intlBankingSection.items.push({ label: "Bank Address", value: formData.get('intl_bankAddress') });
+                if (formData.get('intl_currency')) intlBankingSection.items.push({ label: "Account Currency", value: formData.get('intl_currency') });
+                intlBankingSection.items.push({ label: "Account Type", value: `${formData.get('intl_accountType') || 'N/A'} ${formData.get('intl_accountSubtype') || ''}`.trim() });
+                if(intlBankingSection.items.some(item => item.value && item.value !== 'N/A' && item.value.trim() !== 'N/A')) bankingInfo.sections.push(intlBankingSection);
+
+                let transferSection = { title: "Transfer Details", items: [] };
+                if (formData.get('intl_swift')) transferSection.items.push({ label: "SWIFT/BIC", value: formData.get('intl_swift'), important: true });
+                if (formData.get('intl_accountNumber')) transferSection.items.push({ label: "Account Number", value: formData.get('intl_accountNumber'), important: true });
+                if (formData.get('intl_iban')) transferSection.items.push({ label: "IBAN", value: formData.get('intl_iban'), important: true });
+                if(transferSection.items.some(item => item.value)) bankingInfo.sections.push(transferSection);
+
+                if (formData.get('intl_otherInfo')) {
+                    bankingInfo.sections.push({ title: "Additional Information", items: [{ label: "", value: formData.get('intl_otherInfo') }] });
+                }
+            }
+            return bankingInfo; // Return the structured object
+        }
+        
+        function getCurrentMonth() { const m = ["January","February","March","April","May","June","July","August","September","October","November","December"]; return m[new Date().getMonth()]; }
+        function getCurrentYear() { return new Date().getFullYear(); }
+
+        function generateInvoiceHtmlForPdf(invoiceData) {
+            let html = '<!DOCTYPE html><html><head><title>Invoice ' + invoiceData.number + '</title>';
+            html += '<style>body{font-family:Arial,sans-serif;margin:0;padding:0;font-size:12px;color:#333;}';
+            html += '.invoice-box{max-width:800px;margin:auto;padding:20px;border:1px solid #eee;box-shadow:0 0 10px rgba(0,0,0,.1);font-size:14px;line-height:1.6;font-family:Arial,sans-serif;}';
+            html += '.invoice-box table{width:100%;line-height:inherit;text-align:left;border-collapse:collapse;}';
+            html += '.invoice-box table td{padding:5px;vertical-align:top;}';
+            html += '.invoice-box table tr.top table td{padding-bottom:20px;}';
+            html += '.invoice-box table tr.top table td.title{font-size:30px;line-height:30px;color:#333;text-align:left;}';
+            html += '.invoice-box table tr.information table td{padding-bottom:20px;}';
+            html += '.invoice-box table tr.heading td{background:#f2f2f2;border-bottom:1px solid #ddd;font-weight:bold;padding:8px 5px;}';
+            html += '.invoice-box table tr.item td{border-bottom:1px solid #eee;padding:8px 5px;}';
+            html += '.invoice-box table tr.item pre{white-space:pre-wrap;word-break:break-word;margin:0;font-family:inherit;font-size:inherit;}';
+            html += '.invoice-box table tr.item.last td{border-bottom:none;}';
+            html += '.invoice-box table tr.total td{border-top:2px solid #eee;font-weight:bold;padding:8px 5px;text-align:right;}';
+            html += '.invoice-box table td.num{text-align:right;} .invoice-box table td.center{text-align:center;}';
+            html += '.section-header{margin-top:20px;margin-bottom:5px;font-size:1.1em;font-weight:bold;color:#555;}';
+            html += '.footer-notes{text-align:center;margin-top:30px;font-size:0.9em;color:#777;}';
+            html += '.content-block{background-color:#f9f9f9;border:1px solid #eee;padding:10px;border-radius:4px;margin-top:5px;white-space:normal;word-break:break-word;line-height:1.5;}';
+            html += '.content-block p{margin:0 0 5px 0;}';
+            html += '</style></head><body>';
+            
+            html += '<div class="invoice-box">';
+            html += '<table cellpadding="0" cellspacing="0"><tr class="top"><td colspan="4"><table><tr>';
+            html += '<td class="title">INVOICE</td>';
+            html += '<td class="num">Invoice #: ' + invoiceData.number + '<br>Date: ' + invoiceData.date + '<br>Due Date: ' + new Date(new Date(invoiceData.date).setDate(new Date(invoiceData.date).getDate() + 30)).toLocaleDateString() + '</td>';
+            html += '</tr></table></td></tr>';
+            html += '<tr class="information"><td colspan="4"><table><tr>';
+            html += '<td><strong>From:</strong><br><div class="content-block" style="background:none;border:none;padding:0;">' + invoiceData.from.replace(/\n/g, '<br>') + '</div></td>';
+            html += '<td class="num"><strong>To:</strong><br><div class="content-block" style="background:none;border:none;padding:0;">' + invoiceData.to.replace(/\n/g, '<br>') + '</div></td>';
+            html += '</tr></table></td></tr>';
+            html += '<tr class="heading"><td>Item Description</td><td class="center">Qty</td><td class="num">Rate</td><td class="num">Amount</td></tr>';
+            let subtotal = 0;
+            invoiceData.items.forEach(item => {
+                const amount = (parseFloat(item.quantity) || 0) * (parseFloat(item.unit_cost) || 0);
+                subtotal += amount;
+                html += '<tr class="item"><td><pre>' + item.name + '</pre></td><td class="center">' + item.quantity + '</td><td class="num">$' + parseFloat(item.unit_cost).toFixed(2) + '</td><td class="num">$' + amount.toFixed(2) + '</td></tr>';
+            });
+            html += '<tr class="total"><td colspan="2"></td><td class="num">Subtotal:</td><td class="num">$' + subtotal.toFixed(2) + '</td></tr>';
+            html += '<tr class="total"><td colspan="2"></td><td class="num">Tax (0%):</td><td class="num">$0.00</td></tr>';
+            html += '<tr class="total" style="font-size:1.1em;"><td colspan="2"></td><td class="num"><strong>Total:</strong></td><td class="num"><strong>$' + subtotal.toFixed(2) + '</strong></td></tr>';
+            html += '</table>';
+            
+            html += '<div class="section-header">Payment Details</div>';
+            html += '<div class="content-block">' + invoiceData.notes.replace(/\n/g, '<br>') + '</div>';
+            
+            html += '<div class="section-header">Additional Information</div>';
+            html += '<div class="content-block">' + invoiceData.terms.replace(/\n/g, '<br>') + '</div>';
+            
+            html += '<div class="footer-notes"><p>Please email this invoice to frontwindllc@bill.com</p><p>Subject: ' + getCurrentMonth() + ' ' + getCurrentYear() + ' - Invoice ' + invoiceData.number + '</p></div>';
+            html += '</div></body></html>';
+            return html;
+        }
+        // END: Data collection and HTML generation for PDF
+
+        // HTML-based invoice generation (fallback)
+        function generateHTMLInvoice(invoiceData) {
+            // Create a new window for the invoice
+            const invoiceWindow = window.open('', '_blank');
+            if (!invoiceWindow) {
+                alert('Please allow pop-ups for this site to generate the invoice');
+                return;
+            }
+            
+            // Format currency with commas
+            const formatCurrency = (amount) => {
+                return parseFloat(amount).toLocaleString('en-US', {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2
+                });
+            };
+            
+            // Add due date (30 days from invoice date)
+            const dueDate = new Date(invoiceData.date);
+            dueDate.setDate(dueDate.getDate() + 30);
+            
+            // Calculate total
+            let total = 0;
+            invoiceData.items.forEach(item => {
+                total += parseFloat(item.unit_cost) * parseFloat(item.quantity);
+            });
+            
+            // Generate payment details HTML from the structured data
+            let paymentHTML = `<h3>${invoiceData.bankingInfo.paymentMethodType}</h3>`;
+            invoiceData.bankingInfo.sections.forEach(section => {
+                if (section.items.length > 0) { // Only show section if it has items
+                    paymentHTML += `<div class="payment-section"><h4>${section.title}</h4>`;
+                    section.items.forEach(item => {
+                        const valueDisplay = item.value.replace(/\n/g, '<br>'); // Handle multiline values in "Other Info"
+                        if (item.label) {
+                            paymentHTML += `<div${item.important ? ' class="important"' : ''}><strong>${item.label}:</strong> ${valueDisplay}</div>`;
+                        } else { // For "Other Info" which might not have a label
+                            paymentHTML += `<div${item.important ? ' class="important"' : ''}>${valueDisplay}</div>`;
+                        }
+                    });
+                    paymentHTML += `</div>`;
+                }
+            });
+            
+            // Generate the HTML content
+            const html = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>Invoice ${invoiceData.number}</title>
+                    <style>
+                        body {
+                            font-family: Arial, sans-serif;
+                            margin: 0;
+                            padding: 0;
+                            color: #1a1a1a;
+                            background-color: #f9f9f9;
+                        }
+                        .invoice-container {
+                            max-width: 800px;
+                            margin: 0 auto;
+                            background-color: #fff;
+                            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+                        }
+                        .invoice-header {
+                            background-color: #f2f2f2;
+                            padding: 30px;
+                            position: relative;
+                        }
+                        .invoice-title {
+                            color: #333366;
+                            font-size: 28px;
+                            font-weight: bold;
+                            margin: 0;
+                            font-family: 'Times New Roman', Times, serif;
+                        }
+                        .invoice-number {
+                            margin-top: 5px;
+                            font-size: 16px;
+                            font-weight: bold;
+                        }
+                        .invoice-parties {
+                            display: flex;
+                            justify-content: space-between;
+                            padding: 30px;
+                            border-bottom: 1px solid #eee;
+                        }
+                        .party-block {
+                            width: 45%;
+                        }
+                        .party-block h2 {
+                            font-size: 16px;
+                            border-bottom: 1px solid #ddd;
+                            padding-bottom: 5px;
+                            margin-bottom: 10px;
+                            color: #333;
+                        }
+                        .invoice-info {
+                            background-color: #f5f5f7;
+                            padding: 15px;
+                            margin: 0 30px;
+                            display: flex;
+                            justify-content: space-between;
+                            border-bottom: 1px solid #eee;
+                        }
+                        .info-col {
+                            display: flex;
+                            flex-direction: column;
+                        }
+                        .info-label {
+                            font-weight: bold;
+                            margin-bottom: 5px;
+                            color: #444;
+                        }
+                        .balance-due {
+                            font-weight: bold;
+                            color: #333366;
+                        }
+                        .invoice-items {
+                            padding: 30px;
+                        }
+                        table {
+                            width: 100%;
+                            border-collapse: collapse;
+                        }
+                        th {
+                            background-color: #e0e0e0;
+                            padding: 10px;
+                            text-align: left;
+                            font-weight: bold;
+                        }
+                        td {
+                            padding: 10px;
+                            border-bottom: 1px solid #eee;
+                        }
+                        tr:nth-child(even) {
+                            background-color: #f9f9f9;
+                        }
+                        .total-section {
+                            background-color: #f9f9f9;
+                            padding: 15px 30px;
+                            text-align: right;
+                            border-top: 1px solid #ddd;
+                            border-bottom: 1px solid #ddd;
+                        }
+                        .total-row {
+                            font-weight: bold;
+                            font-size: 16px;
+                            margin-top: 10px;
+                            padding-top: 10px;
+                            border-top: 1px solid #ddd;
+                        }
+                        .department-section, .payment-section-container {
+                            padding: 30px;
+                        }
+                        .section-title {
+                            background-color: #e0e0e0;
+                            padding: 10px;
+                            font-weight: bold;
+                            margin-bottom: 15px;
+                        }
+                        .payment-section {
+                            margin-bottom: 20px;
+                        }
+                        .payment-section h4 {
+                            border-bottom: 1px solid #eee;
+                            padding-bottom: 5px;
+                            color: #555;
+                            margin-bottom: 10px;
+                        }
+                        .important {
+                            font-weight: bold;
+                            background-color: #f2f2f2;
+                            padding: 5px;
+                            margin: 5px 0;
+                        }
+                        .footer {
+                            text-align: center;
+                            padding: 20px;
+                            background-color: #f2f2f2;
+                            border-top: 1px solid #ddd;
+                            color: #666;
+                            font-size: 12px;
+                        }
+                        @media print {
+                            body {
+                                background-color: white;
+                            }
+                            .invoice-container {
+                                box-shadow: none;
+                                margin: 0;
+                                max-width: 100%;
+                            }
+                            .no-print {
+                                display: none;
+                            }
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="invoice-container">
+                        <div class="invoice-header">
+                            <h1 class="invoice-title">INVOICE</h1>
+                            <div class="invoice-number"># ${invoiceData.number}</div>
+                        </div>
+                        
+                        <div class="invoice-parties">
+                            <div class="party-block">
+                                <h2>From:</h2>
+                                <p>${invoiceData.from}</p>
+                            </div>
+                            <div class="party-block">
+                                <h2>Bill To:</h2>
+                                <p>${invoiceData.to}</p>
+                            </div>
+                        </div>
+                        
+                        <div class="invoice-info">
+                            <div class="info-col">
+                                <div class="info-label">Date:</div>
+                                <div>${invoiceData.date}</div>
+                            </div>
+                            <div class="info-col">
+                                <div class="info-label">Due Date:</div>
+                                <div>${dueDate.toLocaleDateString()}</div>
+                            </div>
+                            <div class="info-col">
+                                <div class="info-label">Balance Due:</div>
+                                <div class="balance-due">$${formatCurrency(total)}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="invoice-items">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th style="width: 80px; text-align: center;">Qty</th>
+                                        <th style="width: 100px; text-align: right;">Rate</th>
+                                        <th style="width: 120px; text-align: right;">Amount</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${invoiceData.items.map(item => `
+                                        <tr>
+                                            <td>${item.name}</td>
+                                            <td style="text-align: center;">${item.quantity}</td>
+                                            <td style="text-align: right;">$${formatCurrency(parseFloat(item.unit_cost))}</td>
+                                            <td style="text-align: right;">$${formatCurrency(item.quantity * item.unit_cost)}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="total-section">
+                            <div>Subtotal: $${formatCurrency(total)}</div>
+                            <div>Tax (0%): $0.00</div>
+                            <div class="total-row">Total: $${formatCurrency(total)}</div>
+                        </div>
+                        
+                        <div class="payment-section-container">
+                            <div class="section-title">Payment Method</div>
+                            ${paymentHTML}
+                        </div>
+                        
+                        <div class="department-section">
+                            <div class="section-title">Department</div>
+                            <div>${invoiceData.terms.replace('Department: ', '')}</div>
+                        </div>
+                        
+                        <div class="footer">
+                            <p>Please email this invoice to frontwindllc@bill.com</p>
+                            <p>Subject: ${getCurrentMonth()} ${getCurrentYear()} – Invoice ${invoiceData.number}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="no-print" style="text-align: center; margin: 20px;">
+                        <button onclick="window.print()" style="padding: 10px 20px; background: #333366; color: white; border: none; border-radius: 4px; cursor: pointer;">
+                            Print / Save as PDF
+                        </button>
+                    </div>
+                </body>
+                </html>
+            `;
+            
+            // Write the HTML to the new window
+            invoiceWindow.document.write(html);
+            invoiceWindow.document.close();
+            
+            // Show guidance to the user
+            alert(`Invoice ${invoiceData.number} HTML fallback has been generated.\n\nPlease use the Print button or press Ctrl+P to save as PDF.`);
+        }
+
+        // Replace html2pdf.js implementation with the original PDF-Lib implementation
+        document.getElementById('invoiceForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            if (!validateForm()) return;
+
+            const submitButton = this.querySelector('button[type="submit"]');
+            const originalButtonText = submitButton.textContent;
+            submitButton.disabled = true;
+            submitButton.textContent = 'Generating PDF...';
+            
+            try {
+                const formData = new FormData(this);
+                const fullName = sanitizeInputText(formData.get('fullName'));
+                const discordTag = sanitizeInputText(formData.get('discordTag'));
+                const invoiceSequence = sanitizeInputText(formData.get('invoiceSequence'));
+                const invoiceDate = sanitizeInputText(formData.get('invoiceDate'));
+                const department = sanitizeInputText(formData.get('department'));
+                const paymentRegion = sanitizeInputText(formData.get('paymentRegion'));
+                const initials = getInitials(fullName);
+                const invoiceNumber = `${initials}-${invoiceSequence}`;
+                
+                const lineItemsArray = collectLineItemsForPdf(); 
+                const structuredBankingInfo = collectBankingDetailsForPdf(paymentRegion, formData);
+                
+                if (formData.get('saveDefaults')) {
+                    saveUserDefaults({ fullName, discordTag, department, paymentRegion });
+                }
+                
+                const invoiceData = {
+                    from: escapePdfText(`${fullName} (${discordTag})`),
+                    to: escapePdfText("Frontwind LLC"), 
+                    number: escapePdfText(invoiceNumber), 
+                    date: escapePdfText(invoiceDate), 
+                    currency: "usd",
+                    items: lineItemsArray.map(item => ({ 
+                        name: escapePdfText(item.name), 
+                        quantity: item.quantity, 
+                        unit_cost: item.unit_cost 
+                    })),
+                    // Pass the structured banking info
+                    bankingInfo: {
+                        paymentMethodType: escapePdfText(structuredBankingInfo.paymentMethodType),
+                        sections: structuredBankingInfo.sections.map(section => ({
+                            title: escapePdfText(section.title),
+                            items: section.items.map(item => ({
+                                label: escapePdfText(item.label),
+                                value: escapePdfText(item.value),
+                                important: item.important || false
+                            }))
+                        }))
+                    },
+                    terms: escapePdfText(`Department: ${department}`),
+                };
+                
+                if (sessionStorage.getItem('useHTMLFallback') === 'true') {
+                    sessionStorage.removeItem('useHTMLFallback');
+                    generateHTMLInvoice(invoiceData);
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                    return;
+                }
+                
+                try {
+                    await generatePDFWithPDFLib(invoiceData);
+                } catch (pdfError) {
+                    console.error('Error generating PDF:', pdfError);
+                    alert('PDF generation had an error. Falling back to HTML invoice format.\nPlease use your browser print function to save as PDF.');
+                    generateHTMLInvoice(invoiceData);
+                }
+            } catch (error) {
+                console.error('Error in PDF generation process:', error);
+                alert('PDF Generation Error: ' + (error.message || 'An unknown error occurred. Please try the double-click fallback.'));
+            } finally {
+                submitButton.disabled = false;
+                submitButton.textContent = originalButtonText;
+            }
+        });
+        
+        // PDF Generation function using PDF-Lib
+        async function generatePDFWithPDFLib(invoiceData) {
+            try {
+                // Access the PDF-Lib library from the global variable
+                const PDFDocument = PDFLib.PDFDocument;
+                const rgb = PDFLib.rgb;
+                const StandardFonts = PDFLib.StandardFonts;
+                
+                // Add due date and balance due
+                const dueDate = new Date(invoiceData.date);
+                dueDate.setDate(dueDate.getDate() + 30); // Due in 30 days
+                invoiceData.dueDate = dueDate.toLocaleDateString();
+                
+                // Format dates nicely (e.g., "Apr 30, 2025")
+                const formatDate = (dateStr) => {
+                    const date = new Date(dateStr);
+                    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                    return `${months[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`;
+                };
+                
+                const formattedDate = formatDate(invoiceData.date);
+                const formattedDueDate = formatDate(dueDate);
+                
+                // Format currency values with commas for thousands
+                const formatCurrency = (amount) => {
+                    return amount.toLocaleString('en-US', {
+                        minimumFractionDigits: 2,
+                        maximumFractionDigits: 2
+                    });
+                };
+                
+                // Create a new PDF document
+                const pdfDoc = await PDFDocument.create();
+                
+                // Add a page to the document
+                let page = pdfDoc.addPage([595.28, 841.89]); // A4 size
+                const { width, height } = page.getSize();
+                
+                // Get the standard font
+                const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+                const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+                const timesBold = await pdfDoc.embedFont(StandardFonts.TimesBold);
+                
+                // Set some styles
+                const textColor = rgb(0.1, 0.1, 0.1);
+                const accentColor = rgb(0.3, 0.3, 0.5);
+                const lightGray = rgb(0.9, 0.9, 0.9);
+                const mediumGray = rgb(0.8, 0.8, 0.8);
+                const darkGray = rgb(0.5, 0.5, 0.5);
+                
+                const titleSize = 24;
+                const headingSize = 12;
+                const normalSize = 10;
+                const smallSize = 9;
+                const margin = 50;
+                
+                // Pre-calculate total for balance due
+                let total = 0;
+                invoiceData.items.forEach(item => {
+                    total += parseFloat(item.unit_cost) * parseFloat(item.quantity);
+                });
+                
+                // Draw header background
+                page.drawRectangle({
+                    x: 0,
+                    y: page.getHeight() - 120,
+                    width: page.getWidth(),
+                    height: 120,
+                    color: lightGray,
+                });
+                
+                // Draw the invoice header
+                page.drawText('INVOICE', {
+                    x: margin,
+                    y: page.getHeight() - margin - 10,
+                    size: titleSize,
+                    font: timesBold,
+                    color: accentColor
+                });
+                
+                // Invoice number with hash sign
+                page.drawText(`# ${invoiceData.number}`, {
+                    x: margin,
+                    y: page.getHeight() - margin - 40,
+                    size: headingSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                // Draw from details on the left side
+                page.drawText('From:', {
+                    x: margin,
+                    y: page.getHeight() - 140,
+                    size: headingSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                page.drawText(invoiceData.from, {
+                    x: margin,
+                    y: page.getHeight() - 155,
+                    size: normalSize,
+                    font: helveticaFont,
+                    color: textColor
+                });
+                
+                // Draw billed to section
+                page.drawText('Bill To:', {
+                    x: margin,
+                    y: page.getHeight() - 185,
+                    size: headingSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                page.drawText(invoiceData.to, {
+                    x: margin,
+                    y: page.getHeight() - 200,
+                    size: normalSize,
+                    font: helveticaFont,
+                    color: textColor
+                });
+                
+                // Move the date, due date, and balance due info under "Bill To" section
+                const infoY = page.getHeight() - 230;
+                
+                // Draw a light background for the info box
+                page.drawRectangle({
+                    x: margin,
+                    y: infoY - 40,
+                    width: page.getWidth() - (2 * margin),
+                    height: 40,
+                    color: rgb(0.95, 0.95, 0.97),
+                    borderWidth: 1,
+                    borderColor: lightGray,
+                });
+                
+                // Columns for date information
+                const col1X = margin + 20;
+                const col2X = 220;
+                const col3X = 400;
+                
+                // Date
+                page.drawText('Date:', {
+                    x: col1X,
+                    y: infoY - 25,
+                    size: normalSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                page.drawText(formattedDate, {
+                    x: col1X + 50,
+                    y: infoY - 25,
+                    size: normalSize,
+                    font: helveticaFont,
+                    color: textColor
+                });
+                
+                // Due Date
+                page.drawText('Due Date:', {
+                    x: col2X,
+                    y: infoY - 25,
+                    size: normalSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                page.drawText(formattedDueDate, {
+                    x: col2X + 70,
+                    y: infoY - 25,
+                    size: normalSize,
+                    font: helveticaFont,
+                    color: textColor
+                });
+                
+                // Balance Due
+                page.drawText('Balance Due:', {
+                    x: col3X,
+                    y: infoY - 25,
+                    size: normalSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                page.drawText(`$${formatCurrency(total)}`, {
+                    x: col3X + 85,
+                    y: infoY - 25,
+                    size: normalSize,
+                    font: helveticaBold,
+                    color: accentColor
+                });
+                
+                // Calculate Y position for line items section, below the info box
+                const lineItemSectionStartY = infoY - 40 - 30; // infoY - 40 is bottom of info box, then 30px padding
+
+                // Line items section
+                page.drawText('Description', {
+                    x: margin,
+                    y: lineItemSectionStartY, 
+                    size: headingSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                page.drawText('Amount (USD)', {
+                    x: page.getWidth() - margin - 80,
+                    y: lineItemSectionStartY, 
+                    size: headingSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                // Draw horizontal line
+                page.drawLine({
+                    start: { x: margin, y: lineItemSectionStartY - 10 }, // 10px below headers
+                    end: { x: page.getWidth() - margin, y: lineItemSectionStartY - 10 }, 
+                    thickness: 1,
+                    color: rgb(0, 0, 0)
+                });
+                
+                // Draw line items
+                let y = lineItemSectionStartY - 30; // Start items 20px below the line (total 30px below headers)
+                let itemCount = 0;
+                
+                for (const item of invoiceData.items) {
+                    // Highlight every other row with light background
+                    if (itemCount % 2 === 0) {
+                        page.drawRectangle({
+                            x: margin,
+                            y: y - 5,
+                            width: page.getWidth() - (2 * margin),
+                            height: 20,
+                            color: rgb(0.97, 0.97, 0.97),
+                        });
+                    }
+                    
+                    // Description
+                    const lines = wrapText(item.name, helveticaFont, normalSize, page.getWidth() - 2 * margin - 120);
+                    
+                    for (let i = 0; i < lines.length; i++) {
+                        page.drawText(lines[i], {
+                            x: margin + 10,
+                            y: y - i * 15,
+                            size: normalSize,
+                            font: helveticaFont,
+                            color: textColor
+                        });
+                    }
+                    
+                    // Amount
+                    const amount = (item.quantity * item.unit_cost).toFixed(2);
+                    
+                    page.drawText(`$${formatCurrency(parseFloat(amount))}`, {
+                        x: page.getWidth() - margin - 80,
+                        y: y,
+                        size: normalSize,
+                        font: helveticaFont,
+                        color: textColor
+                    });
+                    
+                    // Move down for the next item (accounting for wrapped text)
+                    y -= Math.max(lines.length, 1) * 20 + 5;
+                    itemCount++;
+                    
+                    // If we're getting close to the bottom of the page, add a new page
+                    if (y < 200) {
+                        // Add a new page
+                        const newPage = pdfDoc.addPage([595.28, 841.89]);
+                        page = newPage;
+                        y = page.getHeight() - margin - 50;
+                    }
+                }
+                
+                // Draw horizontal line before total
+                page.drawLine({
+                    start: { x: 350, y: y - 10 },
+                    end: { x: page.getWidth() - margin, y: y - 10 },
+                    thickness: 1,
+                    color: darkGray
+                });
+                
+                // Subtotal
+                page.drawText('Subtotal:', {
+                    x: 350,
+                    y: y - 30,
+                    size: normalSize,
+                    font: helveticaFont,
+                    color: textColor
+                });
+                
+                page.drawText(`$${formatCurrency(total)}`, {
+                    x: page.getWidth() - margin - 60,
+                    y: y - 30,
+                    size: normalSize,
+                    font: helveticaFont,
+                    color: textColor
+                });
+                
+                // Tax line (0% for these invoices)
+                page.drawText('Tax (0%):', {
+                    x: 350,
+                    y: y - 50,
+                    size: normalSize,
+                    font: helveticaFont,
+                    color: textColor
+                });
+                
+                page.drawText(`$0.00`, {
+                    x: page.getWidth() - margin - 60,
+                    y: y - 50,
+                    size: normalSize,
+                    font: helveticaFont,
+                    color: textColor
+                });
+                
+                // Draw line before final total
+                page.drawLine({
+                    start: { x: 350, y: y - 60 },
+                    end: { x: page.getWidth() - margin, y: y - 60 },
+                    thickness: 1,
+                    color: darkGray
+                });
+                
+                // Total amount
+                page.drawText('Total:', {
+                    x: 350,
+                    y: y - 80,
+                    size: headingSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                page.drawText(`$${formatCurrency(total)}`, {
+                    x: page.getWidth() - margin - 60,
+                    y: y - 80,
+                    size: headingSize,
+                    font: helveticaBold,
+                    color: accentColor
+                });
+                
+                // Draw payment section
+                y -= 120; // Move down for payment section
+                
+                if (y < 200) {
+                    // Add a new page if needed
+                    const newPage = pdfDoc.addPage([595.28, 841.89]);
+                    page = newPage;
+                    y = page.getHeight() - margin - 50;
+                }
+                
+                // Payment Method section with background
+                page.drawRectangle({
+                    x: margin,
+                    y: y,
+                    width: page.getWidth() - (2 * margin),
+                    height: 20,
+                    color: mediumGray,
+                });
+                
+                page.drawText('Payment Method', {
+                    x: margin + 10,
+                    y: y + 5,
+                    size: headingSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                // Draw payment method type (first line)
+                page.drawText(invoiceData.bankingInfo.paymentMethodType, {
+                    x: margin + 10,
+                    y: y - 20,
+                    size: normalSize + 1, // Slightly larger
+                    font: helveticaBold,
+                    color: textColor
+                });
+                y -= 40; // Move down after payment method type
+                
+                // Draw sections of banking info
+                for (const section of invoiceData.bankingInfo.sections) {
+                    // Check if we need a new page
+                    if (y < 150) {
+                        // Add a new page if needed
+                        const newPage = pdfDoc.addPage([595.28, 841.89]);
+                        page = newPage;
+                        y = page.getHeight() - margin - 50;
+                    }
+                    
+                    // Draw section title
+                    page.drawText(section.title, {
+                        x: margin + 10,
+                        y: y,
+                        size: normalSize,
+                        font: helveticaBold,
+                        color: darkGray
+                    });
+                    
+                    // Draw a short line under section title
+                    page.drawLine({
+                        start: { x: margin + 10, y: y - 5 },
+                        end: { x: margin + 150, y: y - 5 },
+                        thickness: 0.5,
+                        color: darkGray
+                    });
+                    
+                    y -= 20; // Move down after section title
+                    
+                    // Draw section items
+                    for (const item of section.items) {
+                        let itemText = '';
+                        
+                        if (item.label) {
+                            itemText = `${item.label}: ${item.value}`;
+                        } else {
+                            itemText = item.value; // For "Other Info" without a label
+                        }
+                        
+                        // Use bold for important items
+                        const font = item.important ? helveticaBold : helveticaFont;
+                        
+                        // Wrap text if needed
+                        const itemLines = wrapText(itemText, font, normalSize, page.getWidth() - 2 * margin - 40);
+                        
+                        for (let i = 0; i < itemLines.length; i++) {
+                            // Check if we need a new page
+                            if (y < 100) {
+                                // Add a new page if needed
+                                const newPage = pdfDoc.addPage([595.28, 841.89]);
+                                page = newPage;
+                                y = page.getHeight() - margin - 50;
+                            }
+                            
+                            page.drawText(itemLines[i], {
+                                x: margin + 25, // Indented
+                                y: y,
+                                size: normalSize,
+                                font: font,
+                                color: textColor
+                            });
+                            
+                            y -= 15; // Move down for next line
+                        }
+                    }
+                    
+                    y -= 15; // Add some space after each section
+                }
+                
+                // Draw department section
+                if (y < 150) {
+                    // Add a new page if needed
+                    const newPage = pdfDoc.addPage([595.28, 841.89]);
+                    page = newPage;
+                    y = page.getHeight() - margin - 50;
+                }
+                
+                // Department section with background
+                page.drawRectangle({
+                    x: margin,
+                    y: y,
+                    width: page.getWidth() - (2 * margin),
+                    height: 20,
+                    color: mediumGray,
+                });
+                
+                page.drawText('Department', {
+                    x: margin + 10,
+                    y: y + 5,
+                    size: headingSize,
+                    font: helveticaBold,
+                    color: textColor
+                });
+                
+                // Department content
+                const departmentContent = invoiceData.terms.replace('Department: ', '');
+                
+                page.drawText(departmentContent, {
+                    x: margin + 10,
+                    y: y - 15,
+                    size: normalSize,
+                    font: helveticaFont,
+                    color: textColor
+                });
+
+                // Draw footer with additional information
+                const footerY = 50;
+                
+                // Line above footer
+                page.drawLine({
+                    start: { x: margin, y: footerY + 20 },
+                    end: { x: page.getWidth() - margin, y: footerY + 20 },
+                    thickness: 1,
+                    color: lightGray
+                });
+                
+                // Footer text
+                page.drawText('Please email this invoice to frontwindllc@bill.com', {
+                    x: margin,
+                    y: footerY,
+                    size: smallSize,
+                    font: helveticaFont,
+                    color: darkGray
+                });
+                
+                const emailSubject = `Subject: ${getCurrentMonth()} ${getCurrentYear()} – Invoice ${invoiceData.number}`;
+                page.drawText(emailSubject, {
+                    x: margin,
+                    y: footerY - 15,
+                    size: smallSize,
+                    font: helveticaFont,
+                    color: darkGray
+                });
+                
+                // Serialize the PDFDocument to bytes
+                const pdfBytes = await pdfDoc.save();
+                
+                // Download the PDF
+                download(pdfBytes, `Invoice-${invoiceData.number}.pdf`, "application/pdf");
+                
+                // Show success message
+                alert(`Invoice ${invoiceData.number} has been generated and downloaded successfully.`);
+            } catch (error) {
+                console.error('Error generating PDF with PDF-Lib:', error);
+                // Rethrow to handle in the parent function
+                throw error;
+            }
+        }
+        
+        // Helper function to wrap text
+        function wrapText(text, font, fontSize, maxWidth) {
+            if (!text) return [''];
+            
+            // Replace problematic characters and normalize line breaks
+            text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+            
+            // First split by newlines to preserve intended line breaks
+            const paragraphs = text.split('\n');
+            const result = [];
+            
+            for (const paragraph of paragraphs) {
+                if (paragraph.trim() === '') {
+                    result.push('');
+                    continue;
+                }
+                
+                // Split the paragraph into words
+                const words = paragraph.split(' ');
+                let currentLine = '';
+                
+                for (const word of words) {
+                    // Check if adding this word would exceed the width
+                    const testLine = currentLine ? `${currentLine} ${word}` : word;
+                    try {
+                        const width = font.widthOfTextAtSize(testLine, fontSize);
+                        
+                        if (width <= maxWidth) {
+                            currentLine = testLine;
+                        } else {
+                            // Add the current line to results and start a new line
+                            result.push(currentLine);
+                            currentLine = word;
+                        }
+                    } catch (e) {
+                        // If there's an encoding issue with a character, just add what we have
+                        if (currentLine) result.push(currentLine);
+                        currentLine = '';
+                    }
+                }
+                
+                // Add the last line if there is one
+                if (currentLine) {
+                    result.push(currentLine);
+                }
+            }
+            
+            return result.length > 0 ? result : [''];
+        }
+        
+        function validateForm() {
+            document.querySelectorAll('.error-message').forEach(el => el.remove());
+            let isValid = true;
+            
+            const requiredTopLevelFields = ['fullName', 'discordTag', 'invoiceSequence', 'invoiceDate', 'department'];
+            requiredTopLevelFields.forEach(id => {
+                const field = document.getElementById(id);
+                if (field && !field.value.trim()) {
+                    showError(field, 'This field is required.'); isValid = false;
+                }
+            });
+
+            if (document.querySelectorAll('#lineItems .line-item').length === 0) {
+                showError(document.getElementById('lineItems'), 'At least one line item is required.'); isValid = false;
+            }
+            
+            const paymentRegion = document.getElementById('paymentRegion').value;
+            const activeRegionRequiredFields = paymentRegion === 'US' ? 
+                ['us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber', 'us_taxId'] :
+                ['intl_country', 'intl_accountName', 'intl_bankName']; // Base INTL, others vary
+
+            activeRegionRequiredFields.forEach(id => {
+                const field = document.getElementById(id);
+                if (field && field.required && !field.value.trim()) {
+                    showError(field, 'This field is required.'); isValid = false;
+                }
+            });
+             // Specifically for INTL, check IBAN or SWIFT/ACC depending on country logic (if it has made them required)
+            if (paymentRegion === 'INTL') {
+                ['intl_swift', 'intl_accountNumber', 'intl_iban'].forEach(id => {
+                    const field = document.getElementById(id);
+                    if (field && field.required && !field.value.trim()) {
+                         showError(field, 'This banking detail is required for the selected country.'); isValid = false;
+                    }
+                });
+            }
+
+
+            const invoiceSeqField = document.getElementById('invoiceSequence');
+            if (!/^\d{2,}$/.test(invoiceSeqField.value)) {
+                showError(invoiceSeqField, 'Must be at least 2 digits (e.g., 01, 02...).'); isValid = false;
+            }
+            if (getInitials(document.getElementById('fullName').value.trim()) === '') {
+                 showError(document.getElementById('fullName'), 'Cannot derive initials. Please provide a valid name.'); isValid = false;
+            }
+            
+            document.querySelectorAll('input[name^="rate"]').forEach(rateField => {
+                if (rateField.value === '' && rateField.required) { // Check if empty first if required
+                     showError(rateField, 'Rate is required.'); isValid = false;
+                } else if (parseFloat(rateField.value) <= 0) { // Then check if positive
+                    showError(rateField, 'Rate must be a positive number.'); isValid = false;
+                }
+            });
+             // Validate required fields within line items
+            document.querySelectorAll('#lineItems .line-item').forEach(itemEl => {
+                const itemId = itemEl.dataset.id;
+                const paymentType = itemEl.querySelector(`#paymentType${itemId}`).value;
+                let lineItemRequiredFields = [];
+                switch(paymentType) {
+                    case 'PER_ITEM': lineItemRequiredFields = [`description${itemId}`, `approvedDate${itemId}`]; break;
+                    case 'SALARY': lineItemRequiredFields = [`description${itemId}`, `dateCovered${itemId}`]; break;
+                    case 'BONUS': lineItemRequiredFields = [`description${itemId}`, `approvedDate${itemId}`, `viewsGenerated${itemId}`]; break;
+                    case 'CUSTOM': lineItemRequiredFields = [`customDescription${itemId}`, `customDate${itemId}`]; break;
+                }
+                if(itemEl.querySelector(`#channel${itemId}`)?.required) {
+                    lineItemRequiredFields.push(`channel${itemId}`);
+                }
+
+                lineItemRequiredFields.forEach(fieldId => {
+                    const field = itemEl.querySelector(`#${fieldId}`);
+                    if (field && field.required && !field.value.trim()){
+                         showError(field, 'This line item detail is required.'); isValid = false;
+                    }
+                });
+            });
+
+            return isValid;
+        }
+        
+        function showError(element, message) {
+            // Prevent multiple error messages for the same element
+            if (element.parentNode.querySelector('.error-message')) {
+                element.parentNode.querySelector('.error-message').remove();
+            }
+            const errorDiv = document.createElement('div');
+            errorDiv.className = 'error-message';
+            errorDiv.textContent = message;
+            element.parentNode.insertBefore(errorDiv, element.nextSibling); // Insert after element
+            element.style.borderColor = '#f56565';
+            element.addEventListener('input', function() {
+                this.style.borderColor = '';
+                const error = this.parentNode.querySelector('.error-message');
+                if (error && error.previousElementSibling === this) error.remove();
+            }, { once: true });
+        }
+        
+        function updateLastSavedDisplay() {
+            const lastSaved = localStorage.getItem('invoiceLastSaved');
+            const lastSavedElement = document.getElementById('lastSavedInfo');
+            if (lastSaved && lastSavedElement) {
+                lastSavedElement.textContent = 'Data last saved: ' + new Date(lastSaved).toLocaleString();
+                lastSavedElement.style.display = 'block';
+            } else if (lastSavedElement) {
+                lastSavedElement.style.display = 'none';
+            }
+        }
+
+        function saveUserDefaults(dataToSave) {
+            const defaults = {
+                fullName: dataToSave.fullName,
+                discordTag: dataToSave.discordTag,
+                department: dataToSave.department,
+                paymentRegion: dataToSave.paymentRegion,
+            };
+            localStorage.setItem('invoiceDefaults', JSON.stringify(defaults));
+            localStorage.setItem('invoiceLastSaved', new Date().toISOString());
+            updateLastSavedDisplay();
+        }
+        
+        document.getElementById('clearSavedData').addEventListener('click', function() {
+            if (confirm('Are you sure you want to clear all saved defaults? This cannot be undone.')) {
+                localStorage.removeItem('invoiceDefaults');
+                localStorage.removeItem('invoiceLastSaved');
+                updateLastSavedDisplay(); // This will hide the "last saved" text
+                
+                const clearConfirmation = document.createElement('div');
+                clearConfirmation.textContent = 'Saved data cleared. Reloading...';
+                clearConfirmation.style.cssText = 'background-color:#374151; color:#F87171; padding:0.5rem; border-radius:0.25rem; margin-top:1rem;';
+                this.parentNode.insertBefore(clearConfirmation, this.nextSibling);
+                setTimeout(() => { window.location.reload(); }, 1500);
+            }
+        });
+        
+        window.addEventListener('load', function() {
+            const saved = localStorage.getItem('invoiceDefaults');
+            if (saved) {
+                try {
+                    const defaults = JSON.parse(saved);
+                    Object.keys(defaults).forEach(key => {
+                        const input = document.getElementById(key);
+                        if (input) input.value = defaults[key];
+                    });
+                    
+                    const paymentRegionEl = document.getElementById('paymentRegion');
+                    if (paymentRegionEl) paymentRegionEl.dispatchEvent(new Event('change'));
+                    
+                    const fullNameInput = document.getElementById('fullName');
+                    if (fullNameInput?.value) fullNameInput.dispatchEvent(new Event('input'));
+                    
+                    updateLastSavedDisplay();
+                } catch (e) { console.error('Error loading saved defaults', e); }
+            }
+            addLineItem(); // Add one line item by default
+            // Trigger initial state of payment fields based on default/first option
+            document.getElementById('paymentRegion').dispatchEvent(new Event('change'));
+        });
+
+        document.querySelector('button[type="submit"]').addEventListener('dblclick', function(e) {
+            sessionStorage.setItem('useHTMLFallback', 'true');
+            alert('Fallback Activated: Invoice will be generated as an HTML page with a print dialog.');
+        });
+    </script>
+</body>
+</html>
