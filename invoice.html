@@ -255,14 +255,19 @@
                 
                 <div class="form-group">
                     <label>Who is this invoice to</label>
-                    <div class="recipient-fixed">Frontwind LLC</div>
+                    <div class="recipient-fixed">Frontwind LLC<br>8 THE GREEN A, DOVER, 19901 Delaware, United States</div>
+                </div>
+                <div class="form-group">
+                    <label for="frontwindTin">Frontwind TIN (optional)</label>
+                    <input type="text" id="frontwindTin" name="frontwindTin">
+                    <div class="text-xs text-gray-400 mt-1">Optional. Only required for Italy, Spain, Brazil, Argentina, and Mexico.</div>
                 </div>
                 
                 <div class="grid">
                     <div class="form-group">
                         <label for="invoiceSequence">Invoice Number *</label>
                         <div class="invoice-number-container">
-                            <input type="text" id="invoiceSequence" name="invoiceSequence" placeholder="01, 02…" required pattern="\d{2,}" title="Must be at least 2 digits (e.g., 01, 02...)">
+                            <input type="text" id="invoiceSequence" name="invoiceSequence" placeholder="e.g., SH-01" required>
                         </div>
                         <div class="text-xs text-gray-400 mt-1">Enter the full invoice number (e.g., SH-01, AB-123). Ensure it includes your initials and a sequence number.</div>
                     </div>
@@ -560,7 +565,10 @@
         
         function escapePdfText(text) {
             if (text === null || typeof text === 'undefined') return '';
-            return String(text).replace(/[\u0000-\u001F]/g, '').replace(/[\u007F-\u009F]/g, '').replace(/[^\x20-\x7E\u00A0-\u00FF]/g, ' ');
+            return String(text)
+                .replace(/[\u0000-\u0009\u000B\u000C\u000E-\u001F]/g, '') // remove control chars except newline
+                .replace(/[\u007F-\u009F]/g, '')
+                .replace(/[^\x20-\x7E\u00A0-\u00FF\n]/g, ' ');
         }
         
         function addLineItem() {
@@ -1032,7 +1040,7 @@
                             </div>
                             <div class="party-block">
                                 <h2>Bill To:</h2>
-                                <p>${invoiceData.to}</p>
+                                <p>${invoiceData.to.replace(/\n/g, '<br>')}</p>
                             </div>
                         </div>
                         
@@ -1141,10 +1149,15 @@
                     saveUserDefaults({ fullName, discordTag, department, paymentRegion });
                 }
                 
+                const frontwindAddress = '8 THE GREEN A, DOVER, 19901 Delaware, United States';
+                const frontwindTin = sanitizeInputText(formData.get('frontwindTin'));
+                const billToLines = ['Frontwind LLC', frontwindAddress];
+                if (frontwindTin) billToLines.push(`TIN: ${frontwindTin}`);
+
                 const invoiceData = {
                     from: escapePdfText(`${fullName} (${discordTag})`),
-                    to: escapePdfText("Frontwind LLC"), 
-                    number: escapePdfText(invoiceNumber), 
+                    to: escapePdfText(billToLines.join('\n')),
+                    number: escapePdfText(invoiceNumber),
                     date: escapePdfText(invoiceDate), 
                     currency: "usd",
                     items: lineItemsArray.map(item => ({ 
@@ -1306,16 +1319,22 @@
                     color: textColor
                 });
                 
-                page.drawText(invoiceData.to, {
-                    x: margin,
-                    y: page.getHeight() - 200,
-                    size: normalSize,
-                    font: helveticaFont,
-                    color: textColor
+                const billToLines = invoiceData.to.split('\n');
+                const lineSpacing = 15;
+                let billToY = page.getHeight() - 200;
+                billToLines.forEach(line => {
+                    page.drawText(line, {
+                        x: margin,
+                        y: billToY,
+                        size: normalSize,
+                        font: helveticaFont,
+                        color: textColor
+                    });
+                    billToY -= lineSpacing;
                 });
-                
+
                 // Move the date, due date, and balance due info under "Bill To" section
-                const infoY = page.getHeight() - 230;
+                const infoY = billToY - 15;
                 
                 // Draw a light background for the info box
                 page.drawRectangle({
@@ -1785,8 +1804,8 @@
             }
             
             const paymentRegion = document.getElementById('paymentRegion').value;
-            const activeRegionRequiredFields = paymentRegion === 'US' ? 
-                ['us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber', 'us_taxId'] :
+            const activeRegionRequiredFields = paymentRegion === 'US' ?
+                ['us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber'] :
                 ['intl_country', 'intl_accountName', 'intl_bankName']; // Base INTL, others vary
 
             activeRegionRequiredFields.forEach(id => {
@@ -1807,8 +1826,8 @@
 
 
             const invoiceSeqField = document.getElementById('invoiceSequence');
-            if (!/^\d{2,}$/.test(invoiceSeqField.value)) {
-                showError(invoiceSeqField, 'Must be at least 2 digits (e.g., 01, 02...).'); isValid = false;
+            if (!invoiceSeqField.value.trim()) {
+                showError(invoiceSeqField, 'Invoice number is required.'); isValid = false;
             }
             if (getInitials(document.getElementById('fullName').value.trim()) === '') {
                  showError(document.getElementById('fullName'), 'Cannot derive initials. Please provide a valid name.'); isValid = false;
