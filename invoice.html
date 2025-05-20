@@ -1315,18 +1315,22 @@
                     font: helveticaBold,
                     color: textColor
                 });
-                
 
+                const billToLinesPdf = invoiceData.to.split('\n');
+                let billToStartY = page.getHeight() - 200;
+                billToLinesPdf.forEach((line, idx) => {
+                    page.drawText(line, {
+                        x: margin,
+                        y: billToStartY - (idx * 15),
                         size: normalSize,
                         font: helveticaFont,
                         color: textColor
                     });
-
                 });
 
                 // Move the date, due date, and balance due info under "Bill To" section
+                const infoY = page.getHeight() - 230 - (billToLinesPdf.length - 1) * 15;
 
-                
                 // Draw a light background for the info box
                 page.drawRectangle({
                     x: margin,
@@ -1813,10 +1817,6 @@
                          showError(field, 'This banking detail is required for the selected country.'); isValid = false;
                     }
                 });
-            }
-
-
-
             }
             if (getInitials(document.getElementById('fullName').value.trim()) === '') {
                  showError(document.getElementById('fullName'), 'Cannot derive initials. Please provide a valid name.'); isValid = false;
