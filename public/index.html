@@ -435,10 +435,168 @@
     
     <div class="footer">
         <p>© <span id="currentYear"></span> Frontwind LLC Invoice Generator</p>
-        <p class="mt-1">All data is processed locally in your browser. No information is sent to our servers.</p>
+        <p class="mt-1">Your invoice defaults are securely saved to your browser and backed up to our database. PDF generation happens locally in your browser.</p>
     </div>
 
     <script>
+        // API Configuration
+        const API_BASE = window.location.origin + '/api';
+
+        // Database sync functions
+        async function initializeUser() {
+            let userId = localStorage.getItem('invoiceUserId');
+
+            if (!userId) {
+                try {
+                    const response = await fetch(`${API_BASE}/user/init`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const data = await response.json();
+                    userId = data.userId;
+                    localStorage.setItem('invoiceUserId', userId);
+                    console.log('New user ID created:', userId);
+                } catch (error) {
+                    console.error('Failed to initialize user:', error);
+                }
+            }
+
+            return userId;
+        }
+
+        async function loadUserDataFromAPI(userId) {
+            if (!userId) return null;
+
+            try {
+                const response = await fetch(`${API_BASE}/user/${userId}`);
+                if (!response.ok) {
+                    if (response.status === 404) {
+                        console.log('No saved data found for user');
+                        return null;
+                    }
+                    throw new Error('Failed to load user data');
+                }
+                const data = await response.json();
+                console.log('Loaded data from database:', data.savedAt);
+                return data;
+            } catch (error) {
+                console.error('Error loading from API:', error);
+                return null;
+            }
+        }
+
+        async function saveUserDataToAPI(userId, formData) {
+            if (!userId) return false;
+
+            try {
+                const response = await fetch(`${API_BASE}/user/save`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId,
+                        data: formData
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to save to database');
+                }
+
+                const result = await response.json();
+                console.log('Data saved to database:', result.savedAt);
+                return true;
+            } catch (error) {
+                console.error('Error saving to API:', error);
+                return false;
+            }
+        }
+
+        function collectAllFormData() {
+            return {
+                fullName: document.getElementById('fullName')?.value || '',
+                discordTag: document.getElementById('discordTag')?.value || '',
+                department: document.getElementById('department')?.value || '',
+                paymentRegion: document.getElementById('paymentRegion')?.value || '',
+
+                // US Banking
+                usAddress: document.getElementById('us_address')?.value || '',
+                usCity: document.getElementById('us_city')?.value || '',
+                usState: document.getElementById('us_state')?.value || '',
+                usZip: document.getElementById('us_zip')?.value || '',
+                usBankName: document.getElementById('us_bankName')?.value || '',
+                usAccountName: document.getElementById('us_accountName')?.value || '',
+                usRoutingNumber: document.getElementById('us_routingNumber')?.value || '',
+                usAccountNumber: document.getElementById('us_accountNumber')?.value || '',
+                usAccountType: document.getElementById('us_accountType')?.value || '',
+                usAccountSubtype: document.getElementById('us_accountSubtype')?.value || '',
+                usTransferType: document.getElementById('us_transferType')?.value || '',
+
+                // International Banking
+                intlCountry: document.getElementById('intl_country')?.value || '',
+                intlAddress: document.getElementById('intl_address')?.value || '',
+                intlCity: document.getElementById('intl_city')?.value || '',
+                intlProvince: document.getElementById('intl_province')?.value || '',
+                intlPostalCode: document.getElementById('intl_postal')?.value || '',
+                intlPhone: document.getElementById('intl_phone')?.value || '',
+                intlAccountName: document.getElementById('intl_accountName')?.value || '',
+                intlBankName: document.getElementById('intl_bankName')?.value || '',
+                intlBankAddress: document.getElementById('intl_bankAddress')?.value || '',
+                intlCurrency: document.getElementById('intl_currency')?.value || '',
+                intlSwiftBic: document.getElementById('intl_swift')?.value || '',
+                intlAccountNumber: document.getElementById('intl_accountNumber')?.value || '',
+                intlIban: document.getElementById('intl_iban')?.value || '',
+                intlOtherInfo: document.getElementById('intl_otherInfo')?.value || '',
+            };
+        }
+
+        function populateFormFields(data) {
+            if (!data) return;
+
+            const fieldMapping = {
+                fullName: 'fullName',
+                discordTag: 'discordTag',
+                department: 'department',
+                paymentRegion: 'paymentRegion',
+
+                // US Banking
+                usAddress: 'us_address',
+                usCity: 'us_city',
+                usState: 'us_state',
+                usZip: 'us_zip',
+                usBankName: 'us_bankName',
+                usAccountName: 'us_accountName',
+                usRoutingNumber: 'us_routingNumber',
+                usAccountNumber: 'us_accountNumber',
+                usAccountType: 'us_accountType',
+                usAccountSubtype: 'us_accountSubtype',
+                usTransferType: 'us_transferType',
+
+                // International Banking
+                intlCountry: 'intl_country',
+                intlAddress: 'intl_address',
+                intlCity: 'intl_city',
+                intlProvince: 'intl_province',
+                intlPostalCode: 'intl_postal',
+                intlPhone: 'intl_phone',
+                intlAccountName: 'intl_accountName',
+                intlBankName: 'intl_bankName',
+                intlBankAddress: 'intl_bankAddress',
+                intlCurrency: 'intl_currency',
+                intlSwiftBic: 'intl_swift',
+                intlAccountNumber: 'intl_accountNumber',
+                intlIban: 'intl_iban',
+                intlOtherInfo: 'intl_otherInfo',
+            };
+
+            Object.keys(fieldMapping).forEach(dataKey => {
+                const elementId = fieldMapping[dataKey];
+                const element = document.getElementById(elementId);
+                if (element && data[dataKey]) {
+                    element.value = data[dataKey];
+                }
+            });
+        }
+
         // Debug function
         function debug(msg, obj) {
             console.log(msg, obj);
@@ -1883,15 +2041,20 @@
             }
         }
 
-        function saveUserDefaults(dataToSave) {
-            const defaults = {
-                fullName: dataToSave.fullName,
-                discordTag: dataToSave.discordTag,
-                department: dataToSave.department,
-                paymentRegion: dataToSave.paymentRegion,
-            };
-            localStorage.setItem('invoiceDefaults', JSON.stringify(defaults));
+        async function saveUserDefaults(dataToSave) {
+            // Collect all form data including banking details
+            const allData = collectAllFormData();
+
+            // Save to localStorage for quick access
+            localStorage.setItem('invoiceDefaults', JSON.stringify(allData));
             localStorage.setItem('invoiceLastSaved', new Date().toISOString());
+
+            // Save to database
+            const userId = localStorage.getItem('invoiceUserId');
+            if (userId) {
+                await saveUserDataToAPI(userId, allData);
+            }
+
             updateLastSavedDisplay();
         }
         
@@ -1909,25 +2072,41 @@
             }
         });
         
-        window.addEventListener('load', function() {
-            const saved = localStorage.getItem('invoiceDefaults');
-            if (saved) {
-                try {
-                    const defaults = JSON.parse(saved);
-                    Object.keys(defaults).forEach(key => {
-                        const input = document.getElementById(key);
-                        if (input) input.value = defaults[key];
-                    });
-                    
-                    const paymentRegionEl = document.getElementById('paymentRegion');
-                    if (paymentRegionEl) paymentRegionEl.dispatchEvent(new Event('change'));
-                    
-                    const fullNameInput = document.getElementById('fullName');
-                    if (fullNameInput?.value) fullNameInput.dispatchEvent(new Event('input'));
-                    
-                    updateLastSavedDisplay();
-                } catch (e) { console.error('Error loading saved defaults', e); }
+        window.addEventListener('load', async function() {
+            // Initialize user ID
+            const userId = await initializeUser();
+
+            // Try to load from database first, fall back to localStorage
+            let userData = null;
+            if (userId) {
+                userData = await loadUserDataFromAPI(userId);
             }
+
+            // Fall back to localStorage if no database data
+            if (!userData) {
+                const saved = localStorage.getItem('invoiceDefaults');
+                if (saved) {
+                    try {
+                        userData = JSON.parse(saved);
+                    } catch (e) {
+                        console.error('Error loading saved defaults', e);
+                    }
+                }
+            }
+
+            // Populate form with loaded data
+            if (userData) {
+                populateFormFields(userData);
+
+                const paymentRegionEl = document.getElementById('paymentRegion');
+                if (paymentRegionEl) paymentRegionEl.dispatchEvent(new Event('change'));
+
+                const fullNameInput = document.getElementById('fullName');
+                if (fullNameInput?.value) fullNameInput.dispatchEvent(new Event('input'));
+
+                updateLastSavedDisplay();
+            }
+
             addLineItem(); // Add one line item by default
             // Trigger initial state of payment fields based on default/first option
             document.getElementById('paymentRegion').dispatchEvent(new Event('change'));

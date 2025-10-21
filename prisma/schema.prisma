@@ -1,0 +1,54 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  userId    String   @unique // Browser-generated unique ID
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Basic Info
+  fullName     String?
+  discordTag   String?
+  department   String?
+
+  // Payment Region
+  paymentRegion String? // "US" or "INTERNATIONAL"
+
+  // US Banking Details
+  usAddress        String?
+  usCity           String?
+  usState          String?
+  usZip            String?
+  usBankName       String?
+  usAccountName    String?
+  usRoutingNumber  String?
+  usAccountNumber  String?
+  usAccountType    String?
+  usAccountSubtype String?
+  usTransferType   String?
+
+  // International Banking Details
+  intlCountry       String?
+  intlAddress       String?
+  intlCity          String?
+  intlProvince      String?
+  intlPostalCode    String?
+  intlPhone         String?
+  intlAccountName   String?
+  intlBankName      String?
+  intlBankAddress   String?
+  intlCurrency      String?
+  intlSwiftBic      String?
+  intlAccountNumber String?
+  intlIban          String?
+  intlOtherInfo     String?
+
+  @@index([userId])
+}
