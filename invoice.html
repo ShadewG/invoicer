@@ -8,6 +8,12 @@
     <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
     <script src="https://unpkg.com/downloadjs@1.4.7/download.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.min.js"></script>
+    <script>
+        if (window['pdfjsLib']) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.2.67/pdf.worker.min.js';
+        }
+    </script>
     <style>
         body {
             background-color: #1a202c;
@@ -214,12 +220,18 @@
         .max-items-warning { background-color: #553c9a; color: white; padding: 0.5rem; text-align: center; margin-top: 0.5rem; border-radius: 0.25rem; display: none; }
         .char-counter { font-size: 0.75rem; color: #a0aec0; text-align: right; margin-top: 0.25rem; }
         .import-toolbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 1rem; padding: 1rem; border-radius: 0.5rem; background-color: #1f2333; border: 1px solid #3b4a61; margin-bottom: 1.5rem; }
-        .import-toolbar__cta { flex: 0 0 auto; }
+        .import-toolbar__cta { flex: 0 0 auto; width: 100%; }
         .import-toolbar__status { flex: 1 1 250px; font-size: 0.9rem; color: #cbd5f5; }
         .import-button { background-color: #38b2ac; color: #0f172a; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
         .import-button:hover:not(:disabled) { background-color: #2c7a7b; }
         .import-button:disabled { opacity: 0.5; cursor: not-allowed; background-color: #2d3748; color: #a0aec0; box-shadow: none; }
         .import-hint { font-size: 0.85rem; color: #a0aec0; margin-top: 0.25rem; }
+        .import-toolbar__actions { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+        .import-toolbar__actions button { flex: 1 1 180px; }
+        .import-status { font-size: 0.85rem; margin-top: 0.5rem; }
+        .import-status.info { color: #a0aec0; }
+        .import-status.success { color: #68d391; }
+        .import-status.error { color: #fc8181; }
         .notion-action-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
         .notion-action-row button { flex: 1 1 auto; min-width: 180px; }
         .notion-status { font-size: 0.85rem; margin-top: 0.75rem; }
@@ -234,6 +246,7 @@
         
         @media (max-width: 768px) {
             .import-toolbar { flex-direction: column; }
+            .import-toolbar__actions { flex-direction: column; }
             .notion-action-row { flex-direction: column; }
             .options-container { flex-direction: column; align-items: stretch; }
             .options-container button, .options-container .form-group { width: 100%; }
@@ -255,8 +268,13 @@
         
         <div class="import-toolbar">
             <div class="import-toolbar__cta">
-                <button type="button" id="importLastInvoice" class="import-button px-4 py-2 rounded" disabled>Import Previous Invoice</button>
-                <div class="import-hint">Prefills last month's salary items plus your payment + department details.</div>
+                <div class="import-toolbar__actions">
+                    <button type="button" id="importLastInvoice" class="import-button px-4 py-2 rounded" disabled>Use Saved Invoice</button>
+                    <button type="button" id="uploadInvoicePdf" class="import-button px-4 py-2 rounded" style="background-color: #63b3ed;">Import from PDF</button>
+                </div>
+                <input type="file" id="invoicePdfInput" accept="application/pdf" style="display: none;" />
+                <div class="import-hint">Prefill this form from your last saved defaults or by uploading a Frontwind invoice PDF.</div>
+                <div id="pdfImportStatus" class="import-status info">Upload an invoice PDF to import salaries + payment info.</div>
             </div>
             <div id="importLastInvoiceStatus" class="import-toolbar__status">No previous invoice saved yet.</div>
         </div>
@@ -633,6 +651,7 @@
         const IMPORT_BASE_FIELDS = ['fullName', 'discordTag', 'contactEmail', 'einNumber', 'department'];
         const US_PAYMENT_FIELD_IDS = ['us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber', 'us_accountType', 'us_accountSubtype', 'us_transferType'];
         const INTL_PAYMENT_FIELD_IDS = ['intl_country', 'intl_address', 'intl_phone', 'intl_city', 'intl_province', 'intl_postal', 'intl_accountName', 'intl_bankName', 'intl_bankAddress', 'intl_currency', 'intl_accountType', 'intl_accountSubtype', 'intl_swift', 'intl_accountNumber', 'intl_iban', 'intl_otherInfo'];
+        const PDF_SECTION_TITLES = ['Personal Information', 'Banking Information', 'Transfer Details', 'Additional Information', 'Address Information', 'Account Details'];
         
         function sanitizeInputText(text) {
             if (text === null || typeof text === 'undefined') return '';
@@ -737,6 +756,12 @@
         document.getElementById('addLineItem').addEventListener('click', addLineItem);
         const importButton = document.getElementById('importLastInvoice');
         if (importButton) importButton.addEventListener('click', handleImportLastInvoice);
+        const pdfUploadButton = document.getElementById('uploadInvoicePdf');
+        const pdfFileInput = document.getElementById('invoicePdfInput');
+        if (pdfUploadButton && pdfFileInput) {
+            pdfUploadButton.addEventListener('click', function() { pdfFileInput.click(); });
+            pdfFileInput.addEventListener('change', handlePdfFileSelection);
+        }
         const saveNotionSettingsBtn = document.getElementById('saveNotionSettings');
         if (saveNotionSettingsBtn) saveNotionSettingsBtn.addEventListener('click', function() {
             const snapshot = collectNotionInputsSnapshot();
@@ -1080,6 +1105,228 @@
             if (statusEl) {
                 statusEl.textContent = `Imported ${salaryCount} salary item${salaryCount === 1 ? '' : 's'} from invoice ${snapshot.invoiceNumber || ''}. Bonuses and per-item rows were skipped.`;
             }
+        }
+
+        function setPdfImportStatus(message, type = 'info') {
+            const statusEl = document.getElementById('pdfImportStatus');
+            if (!statusEl) return;
+            statusEl.textContent = message;
+            statusEl.classList.remove('info', 'success', 'error');
+            statusEl.classList.add(type);
+        }
+
+        async function handlePdfFileSelection(event) {
+            const file = event.target.files?.[0];
+            if (!file) return;
+            setPdfImportStatus(`Reading ${file.name}...`, 'info');
+            try {
+                if (!window.pdfjsLib) throw new Error('PDF reader failed to load. Please refresh and try again.');
+                const lines = await extractLinesFromPdf(file);
+                const snapshot = parsePdfIntoSnapshot(lines);
+                saveLastInvoiceSnapshot(snapshot);
+                applySnapshotToForm(snapshot);
+                refreshImportToolbar(snapshot);
+                const importedCount = (snapshot.lineItems || []).length;
+                setPdfImportStatus(`Imported ${importedCount || '0'} salary item${importedCount === 1 ? '' : 's'} from invoice ${snapshot.invoiceNumber || ''}. Review, adjust, and save.`, importedCount ? 'success' : 'info');
+            } catch (error) {
+                console.error('PDF import error', error);
+                setPdfImportStatus(error?.message ? `PDF import failed: ${error.message}` : 'PDF import failed. Please verify the PDF format.', 'error');
+            } finally {
+                event.target.value = '';
+            }
+        }
+
+        async function extractLinesFromPdf(file) {
+            const buffer = await file.arrayBuffer();
+            const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+            const lines = [];
+            for (let pageIndex = 1; pageIndex <= pdf.numPages; pageIndex++) {
+                const page = await pdf.getPage(pageIndex);
+                const content = await page.getTextContent({ normalizeWhitespace: true });
+                content.items.forEach(item => {
+                    const text = (item?.str || '').replace(/\s+/g, ' ').trim();
+                    if (text) lines.push(text);
+                });
+            }
+            return lines;
+        }
+
+        function normalizePdfLines(rawLines) {
+            if (!Array.isArray(rawLines)) return [];
+            return rawLines.map(line => line.replace(/\s+/g, ' ').trim()).filter(Boolean);
+        }
+
+        function parsePdfIntoSnapshot(rawLines) {
+            const lines = normalizePdfLines(rawLines);
+            if (!lines.length) throw new Error('No readable text found inside the PDF.');
+
+            const invoiceNumberLine = lines.find(line => line.startsWith('#'));
+            if (!invoiceNumberLine) throw new Error('Could not find an invoice number inside the PDF.');
+            const invoiceNumber = invoiceNumberLine.replace(/^#\s*/, '').trim();
+
+            const fromIndex = lines.indexOf('From:');
+            const fromLine = fromIndex !== -1 ? lines[fromIndex + 1] || '' : '';
+            let fullName = fromLine;
+            let discordTag = '';
+            const nameMatch = fromLine.match(/^(.*)\((.*)\)$/);
+            if (nameMatch) {
+                fullName = nameMatch[1].trim();
+                discordTag = nameMatch[2].trim();
+            }
+
+            const departmentIndex = lines.indexOf('Department');
+            const department = departmentIndex !== -1 ? (lines[departmentIndex + 1] || '').trim() : '';
+
+            const paymentMethodIndex = lines.indexOf('Payment Method');
+            const paymentMethodLine = paymentMethodIndex !== -1 ? (lines[paymentMethodIndex + 1] || '') : '';
+            const paymentRegion = /united/i.test(paymentMethodLine) ? 'US' : 'INTL';
+
+            const sectionValues = {};
+            PDF_SECTION_TITLES.forEach(title => {
+                sectionValues[title] = extractSectionValues(lines, title);
+            });
+
+            const lineItems = convertPdfLineItemsToSnapshot(parsePdfLineItems(lines));
+
+            const intlFields = buildIntlFields(sectionValues);
+            const usFields = buildUsFields(sectionValues);
+
+            return {
+                savedAt: new Date().toISOString(),
+                invoiceNumber,
+                invoiceDate: new Date().toISOString().slice(0, 10),
+                paymentRegion,
+                baseFields: {
+                    fullName,
+                    discordTag,
+                    contactEmail: '',
+                    einNumber: '',
+                    department
+                },
+                usFields,
+                intlFields,
+                lineItems
+            };
+        }
+
+        function extractSectionValues(lines, title) {
+            const values = {};
+            const startIdx = lines.indexOf(title);
+            if (startIdx === -1) return values;
+            for (let i = startIdx + 1; i < lines.length; i++) {
+                const line = lines[i];
+                if (PDF_SECTION_TITLES.includes(line) || line === 'Department' || line === 'Payment Method' || line === 'Description' || line === 'Amount (USD)' || line === 'Subtotal:' || line === 'Tax (0%):' || line === 'Total:' || line.startsWith('Subject:') || line.startsWith('Please email')) {
+                    break;
+                }
+                if (!line.includes(':')) continue;
+                const [label, ...rest] = line.split(':');
+                if (!label) continue;
+                values[label.trim()] = rest.join(':').trim();
+            }
+            return values;
+        }
+
+        function parsePdfLineItems(lines) {
+            const startIdx = lines.indexOf('Description');
+            if (startIdx === -1) return [];
+            let i = startIdx + 1;
+            if (lines[i] && lines[i].toLowerCase().includes('amount')) i++;
+            const items = [];
+            let buffer = [];
+            for (; i < lines.length; i++) {
+                const line = lines[i];
+                if (!line) continue;
+                if (line === 'Subtotal:' || line === 'Payment Method') break;
+                if (line === 'Tax (0%):' || line === 'Total:') break;
+                if (line.startsWith('$')) {
+                    const description = buffer.join(' ').trim();
+                    if (description) {
+                        const amount = parseAmount(line);
+                        items.push({ description, amount });
+                    }
+                    buffer = [];
+                } else {
+                    buffer.push(line);
+                }
+            }
+            return items;
+        }
+
+        function convertPdfLineItemsToSnapshot(items) {
+            const salaryItems = [];
+            items.forEach(item => {
+                if (/^salary:/i.test(item.description)) {
+                    const match = item.description.match(/^Salary:\s*(.*?)\s*- Month:\s*(.*)$/i);
+                    const services = match ? match[1].trim() : item.description.replace(/^Salary:\s*/i, '').trim();
+                    const month = match ? match[2].trim() : '';
+                    salaryItems.push({
+                        paymentType: 'SALARY',
+                        rate: item.amount.toFixed(2),
+                        channel: '',
+                        description: services,
+                        dateCovered: month
+                    });
+                }
+            });
+            return salaryItems;
+        }
+
+        function parseAmount(value) {
+            const numeric = parseFloat(String(value).replace(/[^0-9.-]/g, ''));
+            return Number.isFinite(numeric) ? numeric : 0;
+        }
+
+        function buildIntlFields(sectionValues) {
+            const personal = sectionValues['Personal Information'] || {};
+            const banking = sectionValues['Banking Information'] || {};
+            const transfer = sectionValues['Transfer Details'] || {};
+            const { type: intlAccountType, subtype: intlAccountSubtype } = splitAccountTypeValue(banking['Account Type']);
+            return {
+                intl_country: personal['Country'] || '',
+                intl_address: personal['Address'] || '',
+                intl_phone: personal['Phone'] || '',
+                intl_city: personal['City'] || '',
+                intl_province: personal['Province/State'] || '',
+                intl_postal: personal['Postal Code'] || '',
+                intl_accountName: banking['Account Name'] || '',
+                intl_bankName: banking['Bank Name'] || '',
+                intl_bankAddress: banking['Bank Address'] || '',
+                intl_currency: banking['Account Currency'] || '',
+                intl_accountType: intlAccountType,
+                intl_accountSubtype: intlAccountSubtype,
+                intl_swift: transfer['SWIFT/BIC'] || '',
+                intl_accountNumber: transfer['Account Number'] || '',
+                intl_iban: transfer['IBAN'] || '',
+                intl_otherInfo: ''
+            };
+        }
+
+        function buildUsFields(sectionValues) {
+            const address = sectionValues['Address Information'] || {};
+            const banking = sectionValues['Banking Information'] || {};
+            const account = sectionValues['Account Details'] || {};
+            return {
+                us_address: address['Address'] || '',
+                us_city: address['City'] || '',
+                us_state: address['State'] || '',
+                us_zip: address['Zip Code'] || '',
+                us_bankName: banking['Bank Name'] || '',
+                us_accountName: banking['Account Name'] || '',
+                us_routingNumber: banking['ABA Routing Number'] || '',
+                us_accountNumber: banking['Account Number'] || '',
+                us_accountType: account['Account Type'] || '',
+                us_accountSubtype: account['Account Subtype'] || '',
+                us_transferType: account['Transfer Type'] || ''
+            };
+        }
+
+        function splitAccountTypeValue(rawValue) {
+            if (!rawValue) return { type: '', subtype: '' };
+            const parts = rawValue.trim().split(/\s+/);
+            if (parts.length === 1) {
+                return { type: parts[0], subtype: '' };
+            }
+            return { type: parts[0], subtype: parts.slice(1).join(' ') };
         }
 
         function buildNotionRichText(value) {

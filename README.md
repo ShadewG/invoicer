@@ -24,3 +24,7 @@ The Express server serves everything out of the project root, so `invoice.html` 
 ## Notion integration
 
 The web app performs all Notion API calls client-side. Ensure the browser running the invoice generator has network access to `https://api.notion.com`. No server-side secrets are stored.
+
+## Dev utilities
+
+- `pdf_dump.js`: quick Node script to dump the readable text from a generated invoice PDF. Helpful when verifying that PDF imports will parse correctly.
