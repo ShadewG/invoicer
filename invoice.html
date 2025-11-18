@@ -264,6 +264,7 @@
                 <div class="import-toolbar__actions">
                     <button type="button" id="importLastInvoice" class="import-button px-4 py-2 rounded" disabled>Use Saved Invoice</button>
                     <button type="button" id="uploadInvoicePdf" class="import-button px-4 py-2 rounded" style="background-color: #63b3ed;">Import from PDF</button>
+                </div>
                 <input type="file" id="invoicePdfInput" accept="application/pdf" style="display: none;" />
                 <div class="import-hint">Prefill this form from your last saved defaults or by uploading a Frontwind invoice PDF.</div>
                 <div id="pdfImportStatus" class="import-status info">Upload an invoice PDF to import salaries + payment info.</div>
@@ -279,22 +280,26 @@
                     <div class="form-group">
                         <label for="fullName">Full Legal Name *</label>
                         <input type="text" id="fullName" name="fullName" required>
+                    </div>
                     <div class="form-group">
                         <label for="discordTag">Discord Username / Tag *</label>
                         <input type="text" id="discordTag" name="discordTag" placeholder="example#1234" required>
+                    </div>
+                </div>
                 <div class="form-group">
                     <label for="contactEmail">Contact Email</label>
                     <input type="email" id="contactEmail" name="contactEmail" placeholder="you@example.com">
                     <div class="text-xs text-gray-400 mt-1">Optional but recommended for tying invoices to the employee roster.</div>
-
+                </div>
                 <div class="form-group">
                     <label>Who is this invoice to</label>
                     <div class="recipient-fixed">Frontwind LLC<br>8 THE GREEN A, DOVER, 19901 Delaware, United States</div>
+                </div>
                 <div class="form-group">
                     <label for="einNumber">Frontwind EIN (optional)</label>
                     <input type="text" id="einNumber" name="einNumber" placeholder="EIN for tax purposes">
                     <div class="text-xs text-gray-400 mt-1">Optional. Only required for Italy, Spain, Brazil, Argentina, and Mexico.</div>
-                
+                </div>
                 <div class="grid">
                     <div class="form-group">
                         <label for="invoiceNumber">Invoice Number *</label>
@@ -302,9 +307,12 @@
                             <input type="text" id="invoiceNumber" name="invoiceNumber" placeholder="e.g., SH-01" required>
                         </div>
                         <div class="text-xs text-gray-400 mt-1">Enter the full invoice number, including your initials and a sequence (e.g., SH-01, AB-123).</div>
+                    </div>
                     <div class="form-group">
                         <label for="invoiceDate">Invoice Date *</label>
                         <input type="date" id="invoiceDate" name="invoiceDate" required>
+                    </div>
+                </div>
             </div>
 
             <!-- Line Items -->
@@ -312,6 +320,7 @@
                 <h3 class="section-title text-indigo-300">Description of service or product</h3>
                 <div id="lineItems">
                     <!-- Line items will be added here -->
+                </div>
                 <button type="button" id="addLineItem" class="add-button mt-4">+ Add Line Item</button>
                 <div id="maxItemsWarning" class="max-items-warning">
                     Warning: Adding too many line items may cause PDF generation issues. Consider splitting into multiple invoices.
