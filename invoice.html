@@ -220,6 +220,12 @@
         .import-button:hover:not(:disabled) { background-color: #2c7a7b; }
         .import-button:disabled { opacity: 0.5; cursor: not-allowed; background-color: #2d3748; color: #a0aec0; box-shadow: none; }
         .import-hint { font-size: 0.85rem; color: #a0aec0; margin-top: 0.25rem; }
+        .notion-action-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+        .notion-action-row button { flex: 1 1 auto; min-width: 180px; }
+        .notion-status { font-size: 0.85rem; margin-top: 0.75rem; }
+        .notion-status.success { color: #68d391; }
+        .notion-status.error { color: #fc8181; }
+        .notion-status.info { color: #a0aec0; }
 
         .options-container { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #4a5568; }
         .options-container button { white-space: nowrap; text-align: center; }
@@ -228,6 +234,7 @@
         
         @media (max-width: 768px) {
             .import-toolbar { flex-direction: column; }
+            .notion-action-row { flex-direction: column; }
             .options-container { flex-direction: column; align-items: stretch; }
             .options-container button, .options-container .form-group { width: 100%; }
             button[type="submit"] { margin-left: 0; margin-top: 1rem; padding: 0.75rem; }
@@ -268,7 +275,12 @@
                         <input type="text" id="discordTag" name="discordTag" placeholder="example#1234" required>
                     </div>
                 </div>
-                
+                <div class="form-group">
+                    <label for="contactEmail">Contact Email</label>
+                    <input type="email" id="contactEmail" name="contactEmail" placeholder="you@example.com">
+                    <div class="text-xs text-gray-400 mt-1">Optional but recommended for tying invoices to the employee roster.</div>
+                </div>
+
                 <div class="form-group">
                     <label>Who is this invoice to</label>
                     <div class="recipient-fixed">Frontwind LLC<br>8 THE GREEN A, DOVER, 19901 Delaware, United States</div>
@@ -437,6 +449,52 @@
                 </div>
             </div>
 
+            <div class="section" id="notionSyncSection" style="background-color: #242b3d; border-color: #394862;">
+                <h3 class="section-title text-teal-300">Employee Directory Sync</h3>
+                <p class="text-sm text-gray-400 mb-4">Automatically log this invoice's employee details to your Notion database (<span class="text-purple-200">Employee Directory | Active Employees</span>). API keys are stored locally in your browser only.</p>
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <input type="checkbox" id="enableNotionSync" name="enableNotionSync" style="width: auto; display: inline-block; vertical-align: middle; margin-bottom: 0;">
+                    <label for="enableNotionSync" style="display: inline; margin-left: 0.5rem;">Enable automatic sync to Notion</label>
+                </div>
+                <div class="grid" style="margin-bottom: 1rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="notionApiKey">Notion Internal Integration Secret</label>
+                        <input type="password" id="notionApiKey" name="notionApiKey" placeholder="secret_xxx">
+                        <div class="text-xs text-gray-400 mt-1">Create in Notion → Settings → Workspace → Integrations, then share the Employee Directory with that integration.</div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="notionDatabaseId">Employee Directory Database ID</label>
+                        <input type="text" id="notionDatabaseId" name="notionDatabaseId" placeholder="1a587c20070a803f8e6ef559ea38d4ff">
+                        <div class="text-xs text-gray-400 mt-1">Prefilled with the ID from your shared link; adjust if you duplicate the database.</div>
+                    </div>
+                </div>
+                <div class="grid" style="margin-bottom: 0.5rem;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="notionDefaultStatus">Default Employee Status</label>
+                        <select id="notionDefaultStatus" name="notionDefaultStatus">
+                            <option value="Active">Active</option>
+                            <option value="Trial">Trial</option>
+                            <option value="Paused">Paused</option>
+                            <option value="Inactive">Inactive</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label for="notionDefaultRateType">Default Rate Type (fallback)</label>
+                        <select id="notionDefaultRateType" name="notionDefaultRateType">
+                            <option value="Salary">Salary</option>
+                            <option value="Per Item">Per Item</option>
+                            <option value="Mixed">Mixed</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="notion-action-row">
+                    <button type="button" id="saveNotionSettings" class="bg-purple-600 hover:bg-purple-500">Save Notion Settings</button>
+                    <button type="button" id="testNotionSettings" class="bg-indigo-600 hover:bg-indigo-500">Test Connection</button>
+                    <button type="button" id="clearNotionSettings" class="bg-red-700 hover:bg-red-600">Clear Notion Settings</button>
+                </div>
+                <div id="notionStatusMessage" class="notion-status info">Notion sync disabled.</div>
+            </div>
+
             <div class="options-container">
                 <div class="form-group" style="margin-bottom: 0;">
                     <input type="checkbox" id="saveDefaults" name="saveDefaults" style="width: auto; display: inline-block; vertical-align: middle; margin-bottom: 0;">
@@ -569,7 +627,10 @@
         let lineItemCount = 0;
         const MAX_LINE_ITEMS = 20;
         const LAST_INVOICE_STORAGE_KEY = 'frontwindLastInvoiceSnapshot';
-        const IMPORT_BASE_FIELDS = ['fullName', 'discordTag', 'einNumber', 'department'];
+        const NOTION_SETTINGS_KEY = 'frontwindNotionSettings';
+        const DEFAULT_NOTION_DATABASE_ID = '1a587c20070a803f8e6ef559ea38d4ff';
+        const NOTION_VERSION = '2022-06-28';
+        const IMPORT_BASE_FIELDS = ['fullName', 'discordTag', 'contactEmail', 'einNumber', 'department'];
         const US_PAYMENT_FIELD_IDS = ['us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber', 'us_accountType', 'us_accountSubtype', 'us_transferType'];
         const INTL_PAYMENT_FIELD_IDS = ['intl_country', 'intl_address', 'intl_phone', 'intl_city', 'intl_province', 'intl_postal', 'intl_accountName', 'intl_bankName', 'intl_bankAddress', 'intl_currency', 'intl_accountType', 'intl_accountSubtype', 'intl_swift', 'intl_accountNumber', 'intl_iban', 'intl_otherInfo'];
         
@@ -676,6 +737,26 @@
         document.getElementById('addLineItem').addEventListener('click', addLineItem);
         const importButton = document.getElementById('importLastInvoice');
         if (importButton) importButton.addEventListener('click', handleImportLastInvoice);
+        const saveNotionSettingsBtn = document.getElementById('saveNotionSettings');
+        if (saveNotionSettingsBtn) saveNotionSettingsBtn.addEventListener('click', function() {
+            const snapshot = collectNotionInputsSnapshot();
+            if (!snapshot.databaseId) snapshot.databaseId = DEFAULT_NOTION_DATABASE_ID;
+            persistNotionSettings(snapshot);
+            updateNotionStatus('Notion settings saved locally.', 'success');
+        });
+        const clearNotionSettingsBtn = document.getElementById('clearNotionSettings');
+        if (clearNotionSettingsBtn) clearNotionSettingsBtn.addEventListener('click', function() {
+            localStorage.removeItem(NOTION_SETTINGS_KEY);
+            const apiInput = document.getElementById('notionApiKey');
+            if (apiInput) apiInput.value = '';
+            const dbInput = document.getElementById('notionDatabaseId');
+            if (dbInput) dbInput.value = DEFAULT_NOTION_DATABASE_ID;
+            const enabledEl = document.getElementById('enableNotionSync');
+            if (enabledEl) enabledEl.checked = false;
+            updateNotionStatus('Notion settings cleared.', 'info');
+        });
+        const testNotionSettingsBtn = document.getElementById('testNotionSettings');
+        if (testNotionSettingsBtn) testNotionSettingsBtn.addEventListener('click', testNotionConnection);
 
         // START: Data collection and HTML generation for PDF
         function collectLineItemsForPdf() {
@@ -823,7 +904,7 @@
             return storedItems;
         }
 
-        function collectLastInvoiceSnapshot(formData) {
+        function collectLastInvoiceSnapshot(formData, lineItemsOverride) {
             const snapshot = {
                 savedAt: new Date().toISOString(),
                 invoiceNumber: formData.get('invoiceNumber') || '',
@@ -832,7 +913,7 @@
                 baseFields: {},
                 usFields: {},
                 intlFields: {},
-                lineItems: collectLineItemsForStorage()
+                lineItems: Array.isArray(lineItemsOverride) ? lineItemsOverride : collectLineItemsForStorage()
             };
             IMPORT_BASE_FIELDS.forEach(id => snapshot.baseFields[id] = formData.get(id) || '');
             US_PAYMENT_FIELD_IDS.forEach(id => snapshot.usFields[id] = formData.get(id) || '');
@@ -998,6 +1079,296 @@
             const statusEl = document.getElementById('importLastInvoiceStatus');
             if (statusEl) {
                 statusEl.textContent = `Imported ${salaryCount} salary item${salaryCount === 1 ? '' : 's'} from invoice ${snapshot.invoiceNumber || ''}. Bonuses and per-item rows were skipped.`;
+            }
+        }
+
+        function buildNotionRichText(value) {
+            if (!value) return [];
+            return [{ type: 'text', text: { content: value.length > 2000 ? value.slice(0, 2000) : value } }];
+        }
+
+        function buildNotionTitle(value) {
+            const safeValue = value || 'Unnamed Employee';
+            return [{ type: 'text', text: { content: safeValue.length > 120 ? safeValue.slice(0, 120) : safeValue } }];
+        }
+
+        function loadNotionSettings() {
+            try {
+                const raw = localStorage.getItem(NOTION_SETTINGS_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch (error) {
+                console.error('Unable to parse stored Notion settings', error);
+                return null;
+            }
+        }
+
+        function persistNotionSettings(settings) {
+            if (!settings) return;
+            try {
+                localStorage.setItem(NOTION_SETTINGS_KEY, JSON.stringify(settings));
+            } catch (error) {
+                console.error('Unable to store Notion settings', error);
+            }
+        }
+
+        function collectNotionInputsSnapshot() {
+            const enabledEl = document.getElementById('enableNotionSync');
+            const apiInput = document.getElementById('notionApiKey');
+            const dbInput = document.getElementById('notionDatabaseId');
+            const statusInput = document.getElementById('notionDefaultStatus');
+            const rateTypeInput = document.getElementById('notionDefaultRateType');
+            return {
+                enabled: enabledEl ? enabledEl.checked : false,
+                apiKey: apiInput ? apiInput.value.trim() : '',
+                databaseId: dbInput ? dbInput.value.trim() : '',
+                defaultStatus: statusInput ? statusInput.value : 'Active',
+                defaultRateType: rateTypeInput ? rateTypeInput.value : 'Salary'
+            };
+        }
+
+        function getEffectiveNotionSettings() {
+            const stored = loadNotionSettings() || {};
+            const live = collectNotionInputsSnapshot();
+            return {
+                enabled: typeof live.enabled === 'boolean' ? live.enabled : !!stored.enabled,
+                apiKey: live.apiKey || stored.apiKey || '',
+                databaseId: live.databaseId || stored.databaseId || DEFAULT_NOTION_DATABASE_ID,
+                defaultStatus: live.defaultStatus || stored.defaultStatus || 'Active',
+                defaultRateType: live.defaultRateType || stored.defaultRateType || 'Salary'
+            };
+        }
+
+        function updateNotionStatus(message, type = 'info') {
+            const statusEl = document.getElementById('notionStatusMessage');
+            if (!statusEl) return;
+            statusEl.textContent = message;
+            statusEl.classList.remove('success', 'error', 'info');
+            statusEl.classList.add(type);
+        }
+
+        function initializeNotionSettingsUI() {
+            const stored = loadNotionSettings();
+            const dbInput = document.getElementById('notionDatabaseId');
+            if (dbInput && !dbInput.value) dbInput.value = DEFAULT_NOTION_DATABASE_ID;
+            if (stored) {
+                const enabledEl = document.getElementById('enableNotionSync');
+                if (enabledEl) enabledEl.checked = !!stored.enabled;
+                const apiInput = document.getElementById('notionApiKey');
+                if (apiInput) apiInput.value = stored.apiKey || '';
+                if (dbInput && stored.databaseId) dbInput.value = stored.databaseId;
+                const statusInput = document.getElementById('notionDefaultStatus');
+                if (statusInput && stored.defaultStatus) statusInput.value = stored.defaultStatus;
+                const rateTypeInput = document.getElementById('notionDefaultRateType');
+                if (rateTypeInput && stored.defaultRateType) rateTypeInput.value = stored.defaultRateType;
+            }
+            updateNotionStatus((stored?.enabled ? 'Notion sync ready. Records will be upserted after each invoice.' : 'Notion sync disabled.'), stored?.enabled ? 'success' : 'info');
+        }
+
+        function shouldAttemptNotionSync(settings) {
+            const effective = settings || getEffectiveNotionSettings();
+            return Boolean(effective.enabled && effective.apiKey && effective.databaseId);
+        }
+
+        function formatCurrencyText(value) {
+            if (!value && value !== 0) return '$0.00';
+            const num = Number(value) || 0;
+            return `$${num.toFixed(2)}`;
+        }
+
+        function summarizeLineItemsForNotion(items) {
+            const summary = {
+                salary: [],
+                perItem: [],
+                bonus: [],
+                custom: [],
+                salaryTotal: 0,
+                perItemTotal: 0,
+                bonusTotal: 0
+            };
+            (items || []).forEach(item => {
+                const amount = parseFloat(item.rate) || 0;
+                switch(item.paymentType) {
+                    case 'SALARY':
+                        summary.salary.push(item);
+                        summary.salaryTotal += amount;
+                        break;
+                    case 'BONUS':
+                        summary.bonus.push(item);
+                        summary.bonusTotal += amount;
+                        break;
+                    case 'PER_ITEM':
+                        summary.perItem.push(item);
+                        summary.perItemTotal += amount;
+                        break;
+                    default:
+                        summary.custom.push(item);
+                        break;
+                }
+            });
+            summary.primaryRate = summary.salary.length ? (parseFloat(summary.salary[0].rate) || 0) : (summary.perItem.length ? (parseFloat(summary.perItem[0].rate) || 0) : 0);
+            const parts = [];
+            if (summary.salary.length) {
+                const text = summary.salary.map(item => `${item.description || 'Services'} (${item.dateCovered || 'N/A'}) - ${formatCurrencyText(item.rate)}`).join('\n');
+                parts.push('Salary Details:\n' + text);
+            }
+            if (summary.perItem.length) {
+                summary.perItemText = summary.perItem.map(item => `${item.channel ? `[${item.channel}] ` : ''}${item.description || 'Item'} (${item.approvedDate || 'N/A'}) - ${formatCurrencyText(item.rate)}`).join('\n');
+                parts.push('Per Item Payments:\n' + summary.perItemText);
+            }
+            if (summary.bonus.length) {
+                summary.bonusText = summary.bonus.map(item => `${item.channel ? `[${item.channel}] ` : ''}${item.description || 'Bonus'} (${item.approvedDate || 'N/A'}) - ${formatCurrencyText(item.rate)}${item.viewsGenerated ? ` | Views: ${item.viewsGenerated}` : ''}`).join('\n');
+                parts.push('Bonuses:\n' + summary.bonusText);
+            }
+            summary.detailText = parts.join('\n\n');
+            summary.totalComp = summary.salaryTotal + summary.perItemTotal + summary.bonusTotal;
+            const hasSalary = summary.salary.length > 0;
+            const hasPerItem = summary.perItem.length > 0;
+            const hasBonusOnly = summary.bonus.length > 0 && !hasSalary && !hasPerItem;
+            if (hasSalary && hasPerItem) summary.rateType = 'Mixed';
+            else if (hasSalary) summary.rateType = 'Salary';
+            else if (hasPerItem) summary.rateType = 'Per Item';
+            else if (hasBonusOnly) summary.rateType = 'Bonus';
+            else summary.rateType = '';
+            summary.eoyText = `Comp to date: ${formatCurrencyText(summary.totalComp)}`;
+            return summary;
+        }
+
+        function gatherPaymentDetailsForNotion(formData) {
+            const paymentRegion = formData.get('paymentRegion') || 'INTL';
+            if (paymentRegion === 'US') {
+                const cityState = [formData.get('us_city') || '', formData.get('us_state') || ''].filter(Boolean).join(', ');
+                return {
+                    paymentRegion,
+                    country: 'United States',
+                    addressLine: [formData.get('us_address') || '', cityState].filter(Boolean).join(', '),
+                    province: formData.get('us_state') || '',
+                    postalCode: formData.get('us_zip') || '',
+                    phone: '',
+                    currency: 'USD'
+                };
+            }
+            const cityProvince = [formData.get('intl_city') || '', formData.get('intl_province') || ''].filter(Boolean).join(', ');
+            const currencyGuess = (formData.get('intl_currency') || '').trim().toUpperCase();
+            return {
+                paymentRegion,
+                country: (formData.get('intl_country') || '').trim() || 'Other',
+                addressLine: [formData.get('intl_address') || '', cityProvince].filter(Boolean).join(', '),
+                province: formData.get('intl_province') || '',
+                postalCode: formData.get('intl_postal') || '',
+                phone: formData.get('intl_phone') || '',
+                currency: currencyGuess || ''
+            };
+        }
+
+        function buildEmployeeDirectoryProperties(formData, storedLineItems, settings) {
+            const summary = summarizeLineItemsForNotion(storedLineItems);
+            const paymentDetails = gatherPaymentDetailsForNotion(formData);
+            const fullName = (formData.get('fullName') || '').trim();
+            const discordTag = (formData.get('discordTag') || '').trim();
+            const contactEmail = (formData.get('contactEmail') || '').trim();
+            const department = (formData.get('department') || '').trim();
+            const invoiceDateRaw = formData.get('invoiceDate');
+            const invoiceDateObj = invoiceDateRaw ? new Date(invoiceDateRaw) : new Date();
+            const isAugust2025 = invoiceDateObj.getUTCFullYear() === 2025 && invoiceDateObj.getUTCMonth() === 7;
+            const properties = {
+                'Name': { title: buildNotionTitle(fullName || discordTag || 'Unnamed Employee') },
+                'Status': { select: { name: settings?.defaultStatus || 'Active' } }
+            };
+            if (discordTag) properties['Discord'] = { rich_text: buildNotionRichText(discordTag) };
+            if (contactEmail) properties['Email'] = { email: contactEmail };
+            if (summary.salaryTotal) properties['Salary'] = { number: Number(summary.salaryTotal.toFixed(2)) };
+            if (summary.primaryRate) properties['Rate'] = { number: Number(summary.primaryRate.toFixed(2)) };
+            const rateType = summary.rateType || settings?.defaultRateType || 'Salary';
+            properties['Rate Type'] = { select: { name: rateType } };
+            if (summary.detailText) properties['Rate Details'] = { rich_text: buildNotionRichText(summary.detailText) };
+            if (summary.bonusText) {
+                properties['Bonus Incentive'] = { rich_text: buildNotionRichText(summary.bonusText) };
+                properties['Bonus'] = { rich_text: buildNotionRichText(summary.bonusText) };
+                properties['Bonuses'] = { rich_text: buildNotionRichText(summary.bonusText) };
+            }
+            if (summary.perItemText) properties['Suggested Raises'] = { rich_text: buildNotionRichText(summary.perItemText) };
+            if (department) properties['VA Pay'] = { rich_text: buildNotionRichText(`Department: ${department}`) };
+            if (paymentDetails.currency) properties['Payment Currency'] = { select: { name: paymentDetails.currency } };
+            if (paymentDetails.country) properties['Country'] = { select: { name: paymentDetails.country } };
+            if (paymentDetails.addressLine) properties['Address'] = { rich_text: buildNotionRichText(paymentDetails.addressLine) };
+            if (paymentDetails.province) properties['Province/State'] = { rich_text: buildNotionRichText(paymentDetails.province) };
+            if (paymentDetails.postalCode) properties['Postal Code'] = { rich_text: buildNotionRichText(paymentDetails.postalCode) };
+            if (paymentDetails.phone) properties['Phone'] = { phone_number: paymentDetails.phone };
+            properties['EOY (End of Year)'] = { rich_text: buildNotionRichText(summary.eoyText || 'Pending review') };
+            if (isAugust2025 && summary.salaryTotal) properties['August 2025 Payment'] = { number: Number(summary.salaryTotal.toFixed(2)) };
+            return { properties, discordLookup: discordTag, nameLookup: fullName };
+        }
+
+        async function notionRequest(path, method, body, apiKey) {
+            const response = await fetch(`https://api.notion.com${path}`, {
+                method: (method || 'POST').toUpperCase(),
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                    'Notion-Version': NOTION_VERSION
+                },
+                body: body ? JSON.stringify(body) : undefined
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                const message = data?.message || data?.error || `Notion API error (${response.status})`;
+                throw new Error(message);
+            }
+            return data;
+        }
+
+        async function findExistingEmployeePage(settings, discordTag, fullName) {
+            if (!discordTag && !fullName) return null;
+            const filters = [];
+            if (discordTag) filters.push({ property: 'Discord', rich_text: { equals: discordTag } });
+            if (fullName) filters.push({ property: 'Name', title: { equals: fullName } });
+            const filterPayload = filters.length > 1 ? { or: filters } : filters[0];
+            const queryBody = filterPayload ? { filter: filterPayload, page_size: 1 } : { page_size: 1 };
+            try {
+                const data = await notionRequest(`/v1/databases/${settings.databaseId}/query`, 'POST', queryBody, settings.apiKey);
+                return data?.results?.[0]?.id || null;
+            } catch (error) {
+                console.error('Unable to look up employee in Notion', error);
+                throw error;
+            }
+        }
+
+        async function syncEmployeeToNotion(formData, storedLineItems) {
+            const settings = getEffectiveNotionSettings();
+            if (!shouldAttemptNotionSync(settings)) {
+                if (settings.enabled) updateNotionStatus('Incomplete Notion credentials. Please enter your secret + database ID.', 'error');
+                return;
+            }
+            updateNotionStatus('Syncing employee details to Notion...', 'info');
+            const payload = buildEmployeeDirectoryProperties(formData, storedLineItems, settings);
+            try {
+                const existingPageId = await findExistingEmployeePage(settings, payload.discordLookup, payload.nameLookup);
+                if (existingPageId) {
+                    await notionRequest(`/v1/pages/${existingPageId}`, 'PATCH', { properties: payload.properties }, settings.apiKey);
+                    updateNotionStatus('Updated existing employee in Notion.', 'success');
+                } else {
+                    await notionRequest('/v1/pages', 'POST', { parent: { database_id: settings.databaseId }, properties: payload.properties }, settings.apiKey);
+                    updateNotionStatus('Added employee to the Notion directory.', 'success');
+                }
+            } catch (error) {
+                console.error('Notion sync failed', error);
+                updateNotionStatus(`Notion sync failed: ${error.message || 'Unknown error'}`, 'error');
+            }
+        }
+
+        async function testNotionConnection() {
+            const settings = getEffectiveNotionSettings();
+            if (!settings.apiKey || !settings.databaseId) {
+                updateNotionStatus('Enter your Notion secret and database ID before testing.', 'error');
+                return;
+            }
+            updateNotionStatus('Testing Notion credentials...', 'info');
+            try {
+                await notionRequest(`/v1/databases/${settings.databaseId}/query`, 'POST', { page_size: 1 }, settings.apiKey);
+                updateNotionStatus('Notion credentials verified! Ready to sync employees.', 'success');
+            } catch (error) {
+                console.error('Notion test failed', error);
+                updateNotionStatus(`Notion test failed: ${error.message || 'Unknown error'}`, 'error');
             }
         }
 
@@ -1366,6 +1737,7 @@
                 const formData = new FormData(this);
                 const fullName = sanitizeInputText(formData.get('fullName'));
                 const discordTag = sanitizeInputText(formData.get('discordTag'));
+                const contactEmail = sanitizeInputText(formData.get('contactEmail'));
                 const invoiceNumber = sanitizeInputText(formData.get('invoiceNumber'));
                 const invoiceDate = sanitizeInputText(formData.get('invoiceDate'));
                 const department = sanitizeInputText(formData.get('department'));
@@ -1373,10 +1745,14 @@
                 
                 const lineItemsArray = collectLineItemsForPdf(); 
                 const structuredBankingInfo = collectBankingDetailsForPdf(paymentRegion, formData);
-                saveLastInvoiceSnapshot(collectLastInvoiceSnapshot(formData));
+                const storedLineItems = collectLineItemsForStorage();
+                saveLastInvoiceSnapshot(collectLastInvoiceSnapshot(formData, storedLineItems));
+                if (shouldAttemptNotionSync()) {
+                    await syncEmployeeToNotion(formData, storedLineItems);
+                }
                 
                 if (formData.get('saveDefaults')) {
-                    saveUserDefaults({ fullName, discordTag, department, paymentRegion });
+                    saveUserDefaults({ fullName, discordTag, contactEmail, department, paymentRegion });
                 }
                 
                 const frontwindAddress = '8 THE GREEN A, DOVER, 19901 Delaware, United States';
@@ -2120,6 +2496,7 @@
             const defaults = {
                 fullName: dataToSave.fullName,
                 discordTag: dataToSave.discordTag,
+                contactEmail: dataToSave.contactEmail,
                 department: dataToSave.department,
                 paymentRegion: dataToSave.paymentRegion,
             };
@@ -2164,6 +2541,7 @@
             addLineItem(); // Add one line item by default
             // Trigger initial state of payment fields based on default/first option
             document.getElementById('paymentRegion').dispatchEvent(new Event('change'));
+            initializeNotionSettingsUI();
             refreshImportToolbar();
         });
 
