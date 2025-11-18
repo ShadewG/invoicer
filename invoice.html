@@ -213,6 +213,13 @@
         .error-message { color: #f56565; font-size: 0.875rem; margin-top: -0.25rem; margin-bottom: 0.5rem;} /* Adjusted margin */
         .max-items-warning { background-color: #553c9a; color: white; padding: 0.5rem; text-align: center; margin-top: 0.5rem; border-radius: 0.25rem; display: none; }
         .char-counter { font-size: 0.75rem; color: #a0aec0; text-align: right; margin-top: 0.25rem; }
+        .import-toolbar { display: flex; flex-wrap: wrap; align-items: flex-start; gap: 1rem; padding: 1rem; border-radius: 0.5rem; background-color: #1f2333; border: 1px solid #3b4a61; margin-bottom: 1.5rem; }
+        .import-toolbar__cta { flex: 0 0 auto; }
+        .import-toolbar__status { flex: 1 1 250px; font-size: 0.9rem; color: #cbd5f5; }
+        .import-button { background-color: #38b2ac; color: #0f172a; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .import-button:hover:not(:disabled) { background-color: #2c7a7b; }
+        .import-button:disabled { opacity: 0.5; cursor: not-allowed; background-color: #2d3748; color: #a0aec0; box-shadow: none; }
+        .import-hint { font-size: 0.85rem; color: #a0aec0; margin-top: 0.25rem; }
 
         .options-container { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #4a5568; }
         .options-container button { white-space: nowrap; text-align: center; }
@@ -220,6 +227,7 @@
         button[type="submit"] { margin-left: auto; }
         
         @media (max-width: 768px) {
+            .import-toolbar { flex-direction: column; }
             .options-container { flex-direction: column; align-items: stretch; }
             .options-container button, .options-container .form-group { width: 100%; }
             button[type="submit"] { margin-left: 0; margin-top: 1rem; padding: 0.75rem; }
@@ -237,6 +245,14 @@
     <div class="card">
         <h2 class="text-xl font-semibold text-purple-300 mb-4">Generate Invoice</h2>
         <p class="mb-6 text-gray-400">Follow the Frontwind LLC invoicing SOP exactly. All fields marked * are mandatory.</p>
+        
+        <div class="import-toolbar">
+            <div class="import-toolbar__cta">
+                <button type="button" id="importLastInvoice" class="import-button px-4 py-2 rounded" disabled>Import Previous Invoice</button>
+                <div class="import-hint">Prefills last month's salary items plus your payment + department details.</div>
+            </div>
+            <div id="importLastInvoiceStatus" class="import-toolbar__status">No previous invoice saved yet.</div>
+        </div>
         
         <form id="invoiceForm">
             <!-- Who is this invoice from -->
@@ -552,6 +568,10 @@
         
         let lineItemCount = 0;
         const MAX_LINE_ITEMS = 20;
+        const LAST_INVOICE_STORAGE_KEY = 'frontwindLastInvoiceSnapshot';
+        const IMPORT_BASE_FIELDS = ['fullName', 'discordTag', 'einNumber', 'department'];
+        const US_PAYMENT_FIELD_IDS = ['us_address', 'us_city', 'us_state', 'us_zip', 'us_bankName', 'us_accountName', 'us_routingNumber', 'us_accountNumber', 'us_accountType', 'us_accountSubtype', 'us_transferType'];
+        const INTL_PAYMENT_FIELD_IDS = ['intl_country', 'intl_address', 'intl_phone', 'intl_city', 'intl_province', 'intl_postal', 'intl_accountName', 'intl_bankName', 'intl_bankAddress', 'intl_currency', 'intl_accountType', 'intl_accountSubtype', 'intl_swift', 'intl_accountNumber', 'intl_iban', 'intl_otherInfo'];
         
         function sanitizeInputText(text) {
             if (text === null || typeof text === 'undefined') return '';
@@ -654,6 +674,8 @@
         }
         
         document.getElementById('addLineItem').addEventListener('click', addLineItem);
+        const importButton = document.getElementById('importLastInvoice');
+        if (importButton) importButton.addEventListener('click', handleImportLastInvoice);
 
         // START: Data collection and HTML generation for PDF
         function collectLineItemsForPdf() {
@@ -769,6 +791,216 @@
             return bankingInfo; // Return the structured object
         }
         
+        function collectLineItemsForStorage() {
+            const storedItems = [];
+            document.querySelectorAll('#lineItems .line-item').forEach(itemEl => {
+                const itemId = itemEl.dataset.id;
+                if (!itemId) return;
+                const paymentType = document.getElementById(`paymentType${itemId}`)?.value || 'PER_ITEM';
+                const entry = {
+                    paymentType,
+                    rate: document.getElementById(`rate${itemId}`)?.value || '',
+                    channel: document.getElementById(`channel${itemId}`)?.value || ''
+                };
+                if (paymentType === 'SALARY') {
+                    entry.description = document.getElementById(`description${itemId}`)?.value || '';
+                    entry.dateCovered = document.getElementById(`dateCovered${itemId}`)?.value || '';
+                } else if (paymentType === 'PER_ITEM') {
+                    entry.description = document.getElementById(`description${itemId}`)?.value || '';
+                    entry.approvedDate = document.getElementById(`approvedDate${itemId}`)?.value || '';
+                    entry.isDubbing = document.getElementById(`isDubbing${itemId}`)?.checked || false;
+                    entry.dubbingLanguage = document.getElementById(`dubbingLanguage${itemId}`)?.value || '';
+                } else if (paymentType === 'BONUS') {
+                    entry.description = document.getElementById(`description${itemId}`)?.value || '';
+                    entry.approvedDate = document.getElementById(`approvedDate${itemId}`)?.value || '';
+                    entry.viewsGenerated = document.getElementById(`viewsGenerated${itemId}`)?.value || '';
+                } else if (paymentType === 'CUSTOM') {
+                    entry.customDescription = document.getElementById(`customDescription${itemId}`)?.value || '';
+                    entry.customDate = document.getElementById(`customDate${itemId}`)?.value || '';
+                }
+                storedItems.push(entry);
+            });
+            return storedItems;
+        }
+
+        function collectLastInvoiceSnapshot(formData) {
+            const snapshot = {
+                savedAt: new Date().toISOString(),
+                invoiceNumber: formData.get('invoiceNumber') || '',
+                invoiceDate: formData.get('invoiceDate') || '',
+                paymentRegion: formData.get('paymentRegion') || '',
+                baseFields: {},
+                usFields: {},
+                intlFields: {},
+                lineItems: collectLineItemsForStorage()
+            };
+            IMPORT_BASE_FIELDS.forEach(id => snapshot.baseFields[id] = formData.get(id) || '');
+            US_PAYMENT_FIELD_IDS.forEach(id => snapshot.usFields[id] = formData.get(id) || '');
+            INTL_PAYMENT_FIELD_IDS.forEach(id => snapshot.intlFields[id] = formData.get(id) || '');
+            return snapshot;
+        }
+
+        function loadLastInvoiceSnapshot() {
+            try {
+                const raw = localStorage.getItem(LAST_INVOICE_STORAGE_KEY);
+                return raw ? JSON.parse(raw) : null;
+            } catch (err) {
+                console.error('Unable to parse saved invoice snapshot', err);
+                return null;
+            }
+        }
+
+        function saveLastInvoiceSnapshot(snapshot) {
+            if (!snapshot) return;
+            try {
+                localStorage.setItem(LAST_INVOICE_STORAGE_KEY, JSON.stringify(snapshot));
+                refreshImportToolbar(snapshot);
+            } catch (err) {
+                console.error('Unable to store last invoice snapshot', err);
+            }
+        }
+
+        function refreshImportToolbar(snapshotOverride) {
+            const button = document.getElementById('importLastInvoice');
+            const statusEl = document.getElementById('importLastInvoiceStatus');
+            if (!button || !statusEl) return;
+            const snapshot = snapshotOverride || loadLastInvoiceSnapshot();
+            if (!snapshot) {
+                button.disabled = true;
+                statusEl.textContent = 'No previous invoice saved yet.';
+                return;
+            }
+            button.disabled = false;
+            const savedDate = snapshot.savedAt ? new Date(snapshot.savedAt).toLocaleString() : 'recently';
+            const salaryCount = (snapshot.lineItems || []).filter(item => item.paymentType === 'SALARY').length;
+            const invoiceLabel = snapshot.invoiceNumber ? `#${snapshot.invoiceNumber}` : 'invoice';
+            statusEl.textContent = `Last ${invoiceLabel} saved ${savedDate} (${salaryCount} salary item${salaryCount === 1 ? '' : 's'} ready).`;
+        }
+
+        function resetLineItemsSection() {
+            const container = document.getElementById('lineItems');
+            if (container) container.innerHTML = '';
+            lineItemCount = 0;
+            const addBtn = document.getElementById('addLineItem');
+            if (addBtn) {
+                addBtn.disabled = false;
+                addBtn.style.opacity = '1';
+            }
+            const warning = document.getElementById('maxItemsWarning');
+            if (warning) warning.style.display = 'none';
+        }
+
+        function setFieldValue(id, value) {
+            const field = document.getElementById(id);
+            if (!field) return;
+            if (field.type === 'checkbox') {
+                field.checked = Boolean(value);
+            } else {
+                field.value = value || '';
+            }
+        }
+
+        function populateLineItemsFromSnapshot(items) {
+            resetLineItemsSection();
+            const safeItems = Array.isArray(items) ? items.slice(0, MAX_LINE_ITEMS) : [];
+            if (!safeItems.length) {
+                addLineItem();
+                const defaultSelect = document.getElementById(`paymentType${lineItemCount}`);
+                if (defaultSelect) {
+                    defaultSelect.value = 'SALARY';
+                    defaultSelect.dispatchEvent(new Event('change'));
+                }
+                return;
+            }
+            safeItems.forEach(item => {
+                addLineItem();
+                const currentId = lineItemCount;
+                const select = document.getElementById(`paymentType${currentId}`);
+                if (select) {
+                    select.value = item.paymentType || 'SALARY';
+                    select.dispatchEvent(new Event('change'));
+                }
+                setFieldValue(`rate${currentId}`, item.rate || '');
+                setFieldValue(`channel${currentId}`, item.channel || '');
+                switch(select?.value) {
+                    case 'SALARY':
+                        setFieldValue(`description${currentId}`, item.description || '');
+                        setFieldValue(`dateCovered${currentId}`, item.dateCovered || '');
+                        break;
+                    case 'PER_ITEM':
+                        setFieldValue(`description${currentId}`, item.description || '');
+                        setFieldValue(`approvedDate${currentId}`, item.approvedDate || '');
+                        const dubbingCheckbox = document.getElementById(`isDubbing${currentId}`);
+                        if (dubbingCheckbox) {
+                            dubbingCheckbox.checked = Boolean(item.isDubbing);
+                            dubbingCheckbox.dispatchEvent(new Event('change'));
+                        }
+                        setFieldValue(`dubbingLanguage${currentId}`, item.dubbingLanguage || '');
+                        break;
+                    case 'BONUS':
+                        setFieldValue(`description${currentId}`, item.description || '');
+                        setFieldValue(`approvedDate${currentId}`, item.approvedDate || '');
+                        setFieldValue(`viewsGenerated${currentId}`, item.viewsGenerated || '');
+                        break;
+                    case 'CUSTOM':
+                        setFieldValue(`customDescription${currentId}`, item.customDescription || '');
+                        setFieldValue(`customDate${currentId}`, item.customDate || '');
+                        break;
+                }
+            });
+        }
+
+        function incrementInvoiceNumber(value = '') {
+            if (!value) return value;
+            const trimmed = value.trim();
+            const match = trimmed.match(/(.*?)(\d+)(\D*)$/);
+            if (!match) {
+                return trimmed ? `${trimmed}-01` : '';
+            }
+            const incremented = String(parseInt(match[2], 10) + 1).padStart(match[2].length, '0');
+            return `${match[1]}${incremented}${match[3] || ''}`;
+        }
+
+        function applySnapshotToForm(snapshot) {
+            if (!snapshot) return;
+            IMPORT_BASE_FIELDS.forEach(id => setFieldValue(id, snapshot.baseFields?.[id] || ''));
+            const fullNameInput = document.getElementById('fullName');
+            if (fullNameInput) fullNameInput.dispatchEvent(new Event('input'));
+            const invoiceNumberInput = document.getElementById('invoiceNumber');
+            if (invoiceNumberInput) {
+                const nextInvoiceNumber = incrementInvoiceNumber(snapshot.invoiceNumber || snapshot.baseFields?.invoiceNumber || '');
+                invoiceNumberInput.value = nextInvoiceNumber || snapshot.invoiceNumber || '';
+            }
+            const invoiceDateInput = document.getElementById('invoiceDate');
+            if (invoiceDateInput) invoiceDateInput.valueAsDate = new Date();
+            const paymentRegionInput = document.getElementById('paymentRegion');
+            if (paymentRegionInput) {
+                paymentRegionInput.value = snapshot.paymentRegion || paymentRegionInput.value;
+                paymentRegionInput.dispatchEvent(new Event('change'));
+            }
+            if (paymentRegionInput?.value === 'US') {
+                US_PAYMENT_FIELD_IDS.forEach(id => setFieldValue(id, snapshot.usFields?.[id] || ''));
+            } else {
+                INTL_PAYMENT_FIELD_IDS.forEach(id => setFieldValue(id, snapshot.intlFields?.[id] || ''));
+            }
+            const salaryItems = (snapshot.lineItems || []).filter(item => item.paymentType === 'SALARY');
+            populateLineItemsFromSnapshot(salaryItems);
+        }
+
+        function handleImportLastInvoice() {
+            const snapshot = loadLastInvoiceSnapshot();
+            if (!snapshot) {
+                alert('No previous invoice found. Generate an invoice first to enable quick import.');
+                return;
+            }
+            applySnapshotToForm(snapshot);
+            const salaryCount = (snapshot.lineItems || []).filter(item => item.paymentType === 'SALARY').length;
+            const statusEl = document.getElementById('importLastInvoiceStatus');
+            if (statusEl) {
+                statusEl.textContent = `Imported ${salaryCount} salary item${salaryCount === 1 ? '' : 's'} from invoice ${snapshot.invoiceNumber || ''}. Bonuses and per-item rows were skipped.`;
+            }
+        }
+
         function getCurrentMonth() { const m = ["January","February","March","April","May","June","July","August","September","October","November","December"]; return m[new Date().getMonth()]; }
         function getCurrentYear() { return new Date().getFullYear(); }
 
@@ -1141,6 +1373,7 @@
                 
                 const lineItemsArray = collectLineItemsForPdf(); 
                 const structuredBankingInfo = collectBankingDetailsForPdf(paymentRegion, formData);
+                saveLastInvoiceSnapshot(collectLastInvoiceSnapshot(formData));
                 
                 if (formData.get('saveDefaults')) {
                     saveUserDefaults({ fullName, discordTag, department, paymentRegion });
@@ -1931,6 +2164,7 @@
             addLineItem(); // Add one line item by default
             // Trigger initial state of payment fields based on default/first option
             document.getElementById('paymentRegion').dispatchEvent(new Event('change'));
+            refreshImportToolbar();
         });
 
         document.querySelector('button[type="submit"]').addEventListener('dblclick', function(e) {
