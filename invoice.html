@@ -1297,7 +1297,7 @@
             html += '<div class="invoice-box">';
             html += '<table cellpadding="0" cellspacing="0"><tr class="top"><td colspan="4"><table><tr>';
             html += '<td class="title">INVOICE</td>';
-            html += '<td class="num">Invoice #: ' + invoiceData.number + '<br>Date: ' + invoiceData.date + '<br>Due Date: ' + new Date(new Date(invoiceData.date).setDate(new Date(invoiceData.date).getDate() + 30)).toLocaleDateString() + '</td>';
+            html += '<td class="num">Invoice #: ' + invoiceData.number + '<br>Date: ' + invoiceData.date + '<br>Due Date: ' + new Date(new Date(invoiceData.date).setDate(new Date(invoiceData.date).getDate() + 7)).toLocaleDateString() + '</td>';
             html += '</tr></table></td></tr>';
             html += '<tr class="information"><td colspan="4"><table><tr>';
             html += '<td><strong>From:</strong><br><div class="content-block" style="background:none;border:none;padding:0;">' + invoiceData.from.replace(/\n/g, '<br>') + '</div></td>';
@@ -1346,7 +1346,7 @@
             
             // Add due date (30 days from invoice date)
             const dueDate = new Date(invoiceData.date);
-            dueDate.setDate(dueDate.getDate() + 30);
+            dueDate.setDate(dueDate.getDate() + 7);
             
             // Calculate total
             let total = 0;
@@ -1715,7 +1715,7 @@
                 
                 // Add due date and balance due
                 const dueDate = new Date(invoiceData.date);
-                dueDate.setDate(dueDate.getDate() + 30); // Due in 30 days
+                dueDate.setDate(dueDate.getDate() + 7); // Due in 30 days
                 invoiceData.dueDate = dueDate.toLocaleDateString();
                 
                 // Format dates nicely (e.g., "Apr 30, 2025")
