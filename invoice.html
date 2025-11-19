@@ -233,10 +233,10 @@
         .import-status.success { color: #68d391; }
         .import-status.error { color: #fc8181; }
 
-        .options-container { display: flex; flex-wrap: wrap; align-items: center; gap: 1rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #4a5568; }
+        .options-container { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 1rem; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid #4a5568; }
         .options-container button { white-space: nowrap; text-align: center; }
         .options-container .form-group { flex: 0 0 auto; }
-        button[type="submit"] { margin-left: auto; }
+        button[type="submit"] { margin-left: 0; min-width: 240px; font-weight: 600; box-shadow: 0 10px 25px rgba(0,0,0,0.35); }
         
         @media (max-width: 768px) {
             .import-toolbar { flex-direction: column; }
@@ -447,11 +447,6 @@
                 <div class="form-group">
                     <label for="department">Department *</label>
                     <input type="text" id="department" name="department" placeholder="e.g. Production" required>
-                </div>
-            </div>
-                    </div>
-                    </div>
-                </div>
                 </div>
             </div>
 
