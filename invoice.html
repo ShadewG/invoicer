@@ -248,6 +248,7 @@
             .payment-fields { margin-top: 1rem; }
         }
     </style>
+<script async src="https://portal.insanity.team/workspace/shell.js?v=1" data-app="invoicing"></script>
 </head>
 <body>
     <div class="header">
@@ -267,7 +268,7 @@
                 </div>
                 <input type="file" id="invoicePdfInput" accept="application/pdf" style="display: none;" />
                 <div class="import-hint">Prefill this form from your last saved defaults or by uploading a Frontwind invoice PDF.</div>
-                <div id="pdfImportStatus" class="import-status info">Upload an invoice PDF to import salaries + payment info.</div>
+                <div id="pdfImportStatus" class="import-status info">Upload an invoice PDF to import line items + payment info.</div>
             </div>
             <div id="importLastInvoiceStatus" class="import-toolbar__status">No previous invoice saved yet.</div>
         </div>
@@ -895,9 +896,9 @@
             }
             button.disabled = false;
             const savedDate = snapshot.savedAt ? new Date(snapshot.savedAt).toLocaleString() : 'recently';
-            const salaryCount = (snapshot.lineItems || []).filter(item => item.paymentType === 'SALARY').length;
+            const lineItemCount = (snapshot.lineItems || []).length;
             const invoiceLabel = snapshot.invoiceNumber ? `#${snapshot.invoiceNumber}` : 'invoice';
-            statusEl.textContent = `Last ${invoiceLabel} saved ${savedDate} (${salaryCount} salary item${salaryCount === 1 ? '' : 's'} ready).`;
+            statusEl.textContent = `Last ${invoiceLabel} saved ${savedDate} (${lineItemCount} line item${lineItemCount === 1 ? '' : 's'} ready).`;
         }
 
         function resetLineItemsSection() {
@@ -1005,9 +1006,10 @@
                 US_PAYMENT_FIELD_IDS.forEach(id => setFieldValue(id, snapshot.usFields?.[id] || ''));
             } else {
                 INTL_PAYMENT_FIELD_IDS.forEach(id => setFieldValue(id, snapshot.intlFields?.[id] || ''));
+                const intlCountryInput = document.getElementById('intl_country');
+                if (intlCountryInput) intlCountryInput.dispatchEvent(new Event('change'));
             }
-            const salaryItems = (snapshot.lineItems || []).filter(item => item.paymentType === 'SALARY');
-            populateLineItemsFromSnapshot(salaryItems);
+            populateLineItemsFromSnapshot(snapshot.lineItems || []);
         }
 
         function handleImportLastInvoice() {
@@ -1017,10 +1019,10 @@
                 return;
             }
             applySnapshotToForm(snapshot);
-            const salaryCount = (snapshot.lineItems || []).filter(item => item.paymentType === 'SALARY').length;
+            const lineItemCount = (snapshot.lineItems || []).length;
             const statusEl = document.getElementById('importLastInvoiceStatus');
             if (statusEl) {
-                statusEl.textContent = `Imported ${salaryCount} salary item${salaryCount === 1 ? '' : 's'} from invoice ${snapshot.invoiceNumber || ''}. Bonuses and per-item rows were skipped.`;
+                statusEl.textContent = `Imported ${lineItemCount} line item${lineItemCount === 1 ? '' : 's'} from invoice ${snapshot.invoiceNumber || ''}.`;
             }
         }
 
@@ -1070,7 +1072,7 @@
                 applySnapshotToForm(snapshot);
                 refreshImportToolbar(snapshot);
                 const importedCount = (snapshot.lineItems || []).length;
-                setPdfImportStatus(`Imported ${importedCount || '0'} salary item${importedCount === 1 ? '' : 's'} from invoice ${snapshot.invoiceNumber || ''}. Review, adjust, and save.`, importedCount ? 'success' : 'info');
+                setPdfImportStatus(`Imported ${importedCount || '0'} line item${importedCount === 1 ? '' : 's'} from invoice ${snapshot.invoiceNumber || ''}. Review, adjust, and save.`, importedCount ? 'success' : 'info');
             } catch (error) {
                 console.error('PDF import error', error);
                 setPdfImportStatus(error?.message ? `PDF import failed: ${error.message}` : 'PDF import failed. Please verify the PDF format.', 'error');
@@ -1122,7 +1124,7 @@
 
             const paymentMethodIndex = lines.indexOf('Payment Method');
             const paymentMethodLine = paymentMethodIndex !== -1 ? (lines[paymentMethodIndex + 1] || '') : '';
-            const paymentRegion = /united/i.test(paymentMethodLine) ? 'US' : 'INTL';
+            const paymentRegion = /domestic|ach|united states|u\.s\./i.test(paymentMethodLine) ? 'US' : 'INTL';
 
             const sectionValues = {};
             PDF_SECTION_TITLES.forEach(title => {
@@ -1196,22 +1198,81 @@
         }
 
         function convertPdfLineItemsToSnapshot(items) {
-            const salaryItems = [];
+            const lineItems = [];
             items.forEach(item => {
-                if (/^salary:/i.test(item.description)) {
-                    const match = item.description.match(/^Salary:\s*(.*?)\s*- Month:\s*(.*)$/i);
-                    const services = match ? match[1].trim() : item.description.replace(/^Salary:\s*/i, '').trim();
-                    const month = match ? match[2].trim() : '';
-                    salaryItems.push({
+                const { channel, description } = splitPdfLineItemChannel(item.description);
+                const rate = item.amount.toFixed(2);
+
+                const salaryMatch = description.match(/^Salary:\s*(.*?)\s*-\s*Month:\s*(\d{4}-\d{2})$/i);
+                if (salaryMatch) {
+                    lineItems.push({
                         paymentType: 'SALARY',
-                        rate: item.amount.toFixed(2),
-                        channel: '',
-                        description: services,
-                        dateCovered: month
+                        rate,
+                        channel,
+                        description: salaryMatch[1].trim(),
+                        dateCovered: salaryMatch[2].trim()
                     });
+                    return;
                 }
+
+                const perItemMatch = description.match(/^Video:\s*(.*?)(?:\s*\(Dubbing:\s*(.*?)\))?\s*-\s*Approved:\s*(\d{4}-\d{2}-\d{2})$/i);
+                if (perItemMatch) {
+                    lineItems.push({
+                        paymentType: 'PER_ITEM',
+                        rate,
+                        channel,
+                        description: perItemMatch[1].trim(),
+                        approvedDate: perItemMatch[3].trim(),
+                        isDubbing: Boolean(perItemMatch[2]),
+                        dubbingLanguage: (perItemMatch[2] || '').trim()
+                    });
+                    return;
+                }
+
+                const bonusMatch = description.match(/^Bonus:\s*(.*?)\s*-\s*Views:\s*(.*?)\s*-\s*Approved:\s*(\d{4}-\d{2}-\d{2})$/i);
+                if (bonusMatch) {
+                    lineItems.push({
+                        paymentType: 'BONUS',
+                        rate,
+                        channel,
+                        description: bonusMatch[1].trim(),
+                        viewsGenerated: bonusMatch[2].trim(),
+                        approvedDate: bonusMatch[3].trim()
+                    });
+                    return;
+                }
+
+                const customMatch = description.match(/^Custom:\s*([\s\S]*?)\s*-\s*Date:\s*(\d{4}-\d{2}-\d{2})$/i);
+                if (customMatch) {
+                    lineItems.push({
+                        paymentType: 'CUSTOM',
+                        rate,
+                        channel: '',
+                        customDescription: customMatch[1].trim(),
+                        customDate: customMatch[2].trim()
+                    });
+                    return;
+                }
+
+                lineItems.push({
+                    paymentType: 'CUSTOM',
+                    rate,
+                    channel: '',
+                    customDescription: description,
+                    customDate: new Date().toISOString().slice(0, 10)
+                });
             });
-            return salaryItems;
+            return lineItems;
+        }
+
+        function splitPdfLineItemChannel(rawDescription) {
+            const cleanedDescription = (rawDescription || '').replace(/\s+/g, ' ').trim();
+            const channelMatch = cleanedDescription.match(/^\[([^\]]+)\]\s*(.*)$/);
+            if (!channelMatch) return { channel: '', description: cleanedDescription };
+            return {
+                channel: channelMatch[1].trim(),
+                description: channelMatch[2].trim()
+            };
         }
 
         function parseAmount(value) {
@@ -1248,6 +1309,7 @@
             const address = sectionValues['Address Information'] || {};
             const banking = sectionValues['Banking Information'] || {};
             const account = sectionValues['Account Details'] || {};
+            const { type: usAccountType, subtype: usAccountSubtype } = splitAccountTypeValue(account['Account Type']);
             return {
                 us_address: address['Address'] || '',
                 us_city: address['City'] || '',
@@ -1257,8 +1319,8 @@
                 us_accountName: banking['Account Name'] || '',
                 us_routingNumber: banking['ABA Routing Number'] || '',
                 us_accountNumber: banking['Account Number'] || '',
-                us_accountType: account['Account Type'] || '',
-                us_accountSubtype: account['Account Subtype'] || '',
+                us_accountType: usAccountType,
+                us_accountSubtype: account['Account Subtype'] || usAccountSubtype,
                 us_transferType: account['Transfer Type'] || ''
             };
         }
@@ -2446,5 +2508,6 @@
             alert('Fallback Activated: Invoice will be generated as an HTML page with a print dialog.');
         });
     </script>
+
 </body>
 </html>
